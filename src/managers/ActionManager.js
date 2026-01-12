@@ -1,31 +1,41 @@
-// src/managers/ActionManager.js
+// Файл: src/managers/ActionManager.js
 
 export const ACTIONS = {
-    // --- БАЗОВЫЕ МЕХАНИКИ ---
-
-    // Нанесение урона (по тому, на кого сыграли карту)
+    // 1. Урон + Эффект удара
     damage: (scene, action, source, target) => {
         if (target && target.takeDamage) {
             target.takeDamage(action.value);
+            // Запускаем искры!
+            if (scene.effectManager) scene.effectManager.playHit(target.x, target.y);
         }
     },
 
-    // Наложение щита (на того, на кого сыграли карту)
+    // 2. Блок + Эффект щита
     block: (scene, action, source, target) => {
         if (target && target.addShield) {
             target.addShield(action.value);
+            // Запускаем вспышку!
+            if (scene.effectManager) scene.effectManager.playBlock(target.x, target.y);
         }
     },
 
-    // Лечение (того, на кого сыграли карту)
+    // 3. Лечение + Эффект
     heal: (scene, action, source, target) => {
         if (target && target.heal) {
             target.heal(action.value);
+            // Запускаем пузырьки!
+            if (scene.effectManager) scene.effectManager.playHeal(target.x, target.y);
         }
     },
 
-    // --- РЕСУРСЫ И КОЛОДА ---
-
+    // Лечение владельца (Вампиризм)
+    heal_source: (scene, action, source, target) => {
+        if (source && source.heal) {
+            source.heal(action.value);
+            if (scene.effectManager) scene.effectManager.playHeal(source.x, source.y);
+        }
+    },
+    
     // Восстановление маны
     restore_mana: (scene, action, source, target) => {
         scene.mana += action.value;
@@ -34,42 +44,18 @@ export const ACTIONS = {
         scene.showFloatingText(source.x, source.y - 60, `+${action.value} Mana`, 0x00ffff);
     },
 
-    // Добор карт (Draw)
+    // Добор карт
     draw: (scene, action, source, target) => {
         scene.drawCards(action.value);
         scene.showFloatingText(source.x, source.y - 80, `Draw +${action.value}`, 0xffffff);
-    },
-
-    // --- СПЕЦИАЛЬНЫЕ ЭФФЕКТЫ ---
-
-    // Лечение ИСТОЧНИКА (того, кто сыграл карту). Нужно для Вампиризма.
-    heal_source: (scene, action, source, target) => {
-        if (source && source.heal) {
-            source.heal(action.value);
-        }
-    },
-
-    // Урон ИСТОЧНИКУ (того, кто сыграл карту). Нужно для карт типа "Жертва", если мы кидаем их во врага.
-    damage_source: (scene, action, source, target) => {
-        if (source && source.takeDamage) {
-            source.takeDamage(action.value);
-        }
     }
 };
 
-/**
- * Главная функция выполнения действия
- * @param {Phaser.Scene} scene - Ссылка на сцену боя
- * @param {Object} action - Объект действия из базы ({ type: 'damage', value: 5 })
- * @param {Unit} source - Кто применил (обычно Игрок)
- * @param {Unit} target - На кого применили (Враг или Игрок)
- */
 export function executeAction(scene, action, source, target) {
     const actionFunc = ACTIONS[action.type];
-    
     if (actionFunc) {
         actionFunc(scene, action, source, target);
     } else {
-        console.warn(`ActionManager: Неизвестный тип действия "${action.type}"`);
+        console.warn(`Неизвестное действие: ${action.type}`);
     }
 }
