@@ -1,56 +1,75 @@
 // src/managers/ActionManager.js
 
 export const ACTIONS = {
-    // 1. Нанесение урона
-    damage: (scene, source, target, value) => {
-        // Тут можно будет позже добавить проверку на 'Силу' или 'Уязвимость'
-        target.takeDamage(value);
+    // --- БАЗОВЫЕ МЕХАНИКИ ---
+
+    // Нанесение урона (по тому, на кого сыграли карту)
+    damage: (scene, action, source, target) => {
+        if (target && target.takeDamage) {
+            target.takeDamage(action.value);
+        }
     },
 
-    // 2. Блок / Щит
-    block: (scene, source, target, value) => {
-        target.addShield(value);
+    // Наложение щита (на того, на кого сыграли карту)
+    block: (scene, action, source, target) => {
+        if (target && target.addShield) {
+            target.addShield(action.value);
+        }
     },
 
-    // 3. Лечение
-    heal: (scene, source, target, value) => {
-        target.heal(value);
+    // Лечение (того, на кого сыграли карту)
+    heal: (scene, action, source, target) => {
+        if (target && target.heal) {
+            target.heal(action.value);
+        }
     },
 
-    // 4. Лечение владельца (для Вампиризма)
-    heal_owner: (scene, source, target, value) => {
-        source.heal(value);
-    },
+    // --- РЕСУРСЫ И КОЛОДА ---
 
-    // 5. Восстановление маны
-    restore_mana: (scene, source, target, value) => {
-        scene.mana += value;
+    // Восстановление маны
+    restore_mana: (scene, action, source, target) => {
+        scene.mana += action.value;
         if (scene.mana > scene.maxMana) scene.mana = scene.maxMana;
         scene.updateManaUI();
-        scene.showFloatingText(source.x, source.y - 60, `+${value} Mana`, 0x00ffff);
+        scene.showFloatingText(source.x, source.y - 60, `+${action.value} Mana`, 0x00ffff);
     },
 
-    // --- НОВЫЕ МЕХАНИКИ (Легко добавлять!) ---
-
-    // 6. Добор карт (Draw Cards)
-    draw: (scene, source, target, value) => {
-        scene.drawCards(value);
-        scene.showFloatingText(source.x, source.y - 80, `Draw +${value}`, 0xffffff);
+    // Добор карт (Draw)
+    draw: (scene, action, source, target) => {
+        scene.drawCards(action.value);
+        scene.showFloatingText(source.x, source.y - 80, `Draw +${action.value}`, 0xffffff);
     },
 
-    // 7. Урон самому себе (Sacrifice)
-    self_damage: (scene, source, target, value) => {
-        source.takeDamage(value);
+    // --- СПЕЦИАЛЬНЫЕ ЭФФЕКТЫ ---
+
+    // Лечение ИСТОЧНИКА (того, кто сыграл карту). Нужно для Вампиризма.
+    heal_source: (scene, action, source, target) => {
+        if (source && source.heal) {
+            source.heal(action.value);
+        }
+    },
+
+    // Урон ИСТОЧНИКУ (того, кто сыграл карту). Нужно для карт типа "Жертва", если мы кидаем их во врага.
+    damage_source: (scene, action, source, target) => {
+        if (source && source.takeDamage) {
+            source.takeDamage(action.value);
+        }
     }
 };
 
-// Главная функция, которая запускает действие
+/**
+ * Главная функция выполнения действия
+ * @param {Phaser.Scene} scene - Ссылка на сцену боя
+ * @param {Object} action - Объект действия из базы ({ type: 'damage', value: 5 })
+ * @param {Unit} source - Кто применил (обычно Игрок)
+ * @param {Unit} target - На кого применили (Враг или Игрок)
+ */
 export function executeAction(scene, action, source, target) {
     const actionFunc = ACTIONS[action.type];
     
     if (actionFunc) {
-        actionFunc(scene, source, target, action.value);
+        actionFunc(scene, action, source, target);
     } else {
-        console.warn(`Неизвестный тип действия: ${action.type}`);
+        console.warn(`ActionManager: Неизвестный тип действия "${action.type}"`);
     }
 }
