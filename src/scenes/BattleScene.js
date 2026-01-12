@@ -1,9 +1,10 @@
-// src/scenes/BattleScene.js
+// Файл: src/scenes/BattleScene.js
 
 import { Unit } from '../prefabs/Unit.js';
 import { Card } from '../prefabs/Card.js';
 import { CARDS_DB } from '../data/cards.js';
-import { executeAction } from '../managers/ActionManager.js'; // <-- НОВЫЙ ИМПОРТ
+import { executeAction } from '../managers/ActionManager.js';
+import { EffectManager } from '../managers/EffectManager.js'; // <-- Добавили импорт
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -13,43 +14,50 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        // UI: Затемнение для просмотра карт
+        // --- 1. ГЕНЕРАЦИЯ ТЕКСТУРЫ ЧАСТИЦ (Программно) ---
+        // Рисуем белый кружок и называем его 'flare'
+        if (!this.textures.exists('flare')) {
+            const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+            graphics.fillStyle(0xffffff, 1);
+            graphics.fillCircle(4, 4, 4);
+            graphics.generateTexture('flare', 8, 8);
+        }
+
+        // --- 2. ПОДКЛЮЧАЕМ МЕНЕДЖЕР ЭФФЕКТОВ ---
+        this.effectManager = new EffectManager(this);
+
+
+        // --- UI ---
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => this.unzoomCard());
         this.zoomedCard = null;
 
-        // UI: Мана
         this.mana = 3; this.maxMana = 3;
         this.manaText = this.add.text(20, GH - 50, `Mana: ${this.mana}/${this.maxMana}`, { fontSize: '32px', color: '#00ffff', fontStyle: 'bold' }).setDepth(10);
         
-        // UI: Кнопка Конец хода
         this.endTurnBtn = this.add.rectangle(GW - 80, GH - 150, 140, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
         this.add.text(GW - 80, GH - 150, "END TURN", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
 
-        // UI: Зона сброса
         this.trashZone = this.add.zone(GW - 60, GH - 50, 100, 100).setRectangleDropZone(100, 100);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
         trashG.strokeRect(this.trashZone.x - 50, this.trashZone.y - 50, 100, 100);
         this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '12px', color: '#666' }).setOrigin(0.5);
 
-        // Инициализация игрока
+        // ЮНИТЫ
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.add.existing(this.player);
-        
-        // Спавн первого врага
         this.startNewBattle("slime");
 
         this.hand = [];
         this.drawCards(5);
 
-        // --- ОБРАБОТКА ВВОДА ---
+        // --- ИВЕНТЫ ---
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            // Задержка чтобы отличить клик от драга
             if (Date.now() - card.pressStartTime > 200) {
                  card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100);
             }
@@ -59,7 +67,7 @@ export class BattleScene extends Phaser.Scene {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            if (Date.now() - card.pressStartTime < 250) return; // Это был клик
+            if (Date.now() - card.pressStartTime < 250) return;
             card.setDepth(0);
             if (!dropped) this.returnCardToHand(card);
         });
@@ -72,28 +80,22 @@ export class BattleScene extends Phaser.Scene {
             const data = card.cardData;
             if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
 
-            // ОПРЕДЕЛЕНИЕ ВАЛИДНОЙ ЦЕЛИ
             let validTarget = null;
-            
-            // 1. Бросили на Врага
             if (dropZone.name === "enemy_target" && this.enemy.alive) {
                 if (data.target === 'enemy' || data.target === 'any') validTarget = this.enemy;
                 else this.showFloatingText(card.x, card.y, "Только на себя!", 0xffaaaa);
             }
-            // 2. Бросили на Игрока
             else if (dropZone.name === "player_target" && this.player.alive) {
                 if (data.target === 'self' || data.target === 'any') validTarget = this.player;
                 else this.showFloatingText(card.x, card.y, "Только на врага!", 0xffaaaa);
             }
 
             if (validTarget) {
-                // Проверка маны
                 if (this.mana < data.cost) {
                     this.showFloatingText(card.x, card.y, "No Mana!", 0x00ffff);
                     this.returnCardToHand(card);
                     return;
                 }
-                // РОЗЫГРЫШ КАРТЫ
                 this.playCard(card, validTarget);
             } else {
                 this.returnCardToHand(card);
@@ -101,22 +103,16 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // --- ГЛАВНАЯ ЛОГИКА РОЗЫГРЫША ---
     playCard(card, target) {
         const data = card.cardData;
-        
-        // Делегируем выполнение эффектов менеджеру
         if (data.actions) {
             data.actions.forEach(action => {
-                // this.player выступает как source (источник)
                 executeAction(this, action, this.player, target);
             });
         }
-
         this.spendMana(data.cost);
         this.discardCard(card);
     }
-    // --------------------------------
 
     startNewBattle(enemyKey) {
         if (this.enemy) this.enemy.destroy();
