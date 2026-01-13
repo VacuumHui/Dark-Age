@@ -205,7 +205,7 @@ export class BattleScene extends Phaser.Scene {
         this.dimmer.on('pointerdown', () => this.unzoomCard());
         
         // --- БЕЗОПАСНАЯ ЗОНА (ОТСТУПЫ ПОБОЛЬШЕ) ---
-        const PADDING = 100; 
+        const PADDING = 60; 
 
         // Мана (Сдвинули правее и чуть выше)
         this.mana = 3; this.maxMana = 3;
