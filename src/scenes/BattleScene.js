@@ -3,13 +3,13 @@
 import { Unit } from '../prefabs/Unit.js';
 import { Card } from '../prefabs/Card.js';
 import { CARDS_DB } from '../data/cards.js';
-import { RELICS_DB } from '../data/relics.js'; // <-- ИМПОРТ БАЗЫ РЕЛИКВИЙ
+import { RELICS_DB } from '../data/relics.js'; 
 import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
 import { GameState } from '../GameState.js';
 import { RewardManager } from '../managers/RewardManager.js';
 import { StatusManager } from '../managers/StatusManager.js';
-import { RelicManager } from '../managers/RelicManager.js'; // <-- ИМПОРТ МЕНЕДЖЕРА
+import { RelicManager } from '../managers/RelicManager.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -31,10 +31,7 @@ export class BattleScene extends Phaser.Scene {
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
-        this.relicManager = new RelicManager(this); // <-- СОЗДАЕМ МЕНЕДЖЕР РЕЛИКВИЙ
-
-        
-
+        this.relicManager = new RelicManager(this); 
 
         // --- 3. КОЛОДА ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
@@ -43,7 +40,7 @@ export class BattleScene extends Phaser.Scene {
 
         // --- 4. ИНТЕРФЕЙС ---
         this.createUI(GW, GH);
-        this.createRelicUI(); // <-- РИСУЕМ ИКОНКИ РЕЛИКВИЙ
+        this.createRelicUI(); 
 
         // --- 5. ЮНИТЫ ---
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
@@ -55,7 +52,6 @@ export class BattleScene extends Phaser.Scene {
         this.startNewBattle("slime");
 
         // --- ТРИГГЕР: НАЧАЛО БОЯ ---
-        // Здесь сработает Гантеля и даст Силу
         this.relicManager.trigger('onBattleStart');
 
         // --- 6. СТАРТ ---
@@ -145,12 +141,11 @@ export class BattleScene extends Phaser.Scene {
             
             // --- СТАТУСЫ ---
             if (this.statusManager) {
-                this.statusManager.onTurnEnd(this.player);   // Сгорает сила
-                this.statusManager.onTurnStart(this.player); // Тикает яд
+                this.statusManager.onTurnEnd(this.player);   
+                this.statusManager.onTurnStart(this.player); 
             }
 
             // --- ТРИГГЕР: НАЧАЛО ХОДА ---
-            // Здесь сработает Шипастый щит или Кольцо регенерации
             this.relicManager.trigger('onTurnStart'); 
 
             if (!this.player.alive) return;
@@ -180,7 +175,6 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
 
         if (unit.isPlayer) {
-            // ПОРАЖЕНИЕ
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
             
@@ -192,16 +186,12 @@ export class BattleScene extends Phaser.Scene {
             
             btn.on('pointerdown', () => { 
                 GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
-                GameState.relics = []; // Сброс реликвий
+                GameState.relics = []; 
                 GameState.currentHp = 50;
                 this.scene.restart(); 
             });
         } else {
-            // ВРАГ УМЕР
-            // --- ТРИГГЕР: УБИЙСТВО ---
-            // Здесь сработает Амулет Вампира
             this.relicManager.trigger('onKill', { victim: unit });
-
             this.handleVictory();
         }
     }
@@ -270,49 +260,32 @@ export class BattleScene extends Phaser.Scene {
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
 
-    
-
-    setupInput() {
-        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            if (!this.isBattleActive) return;
-            const card = gameObject.parentContainer;
-            if (this.zoomedCard) return;
-            if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
-        });
-        this.input.on('dragend', (pointer, gameObject, dropped// НОВОЕ: ОТРИСОВКА РЕЛИКВИЙ (ИСПРАВЛЕННАЯ)
+    // НОВОЕ: ОТРИСОВКА РЕЛИКВИЙ (ИСПРАВЛЕННАЯ)
     createRelicUI() {
-        const startX = 50;  // Отступ от левого края
-        const startY = 40;  // Отступ сверху
-        const gap = 50;     // Расстояние между иконками
+        const startX = 50;
+        const startY = 40; 
+        const gap = 50;    
 
-        // Рисуем каждую реликвию из инвентаря
         GameState.relics.forEach((relicId, index) => {
             const data = RELICS_DB[relicId];
             if (!data) return;
 
             const x = startX + (index * gap);
             
-            // Рамка иконки
             this.add.rectangle(x, startY, 40, 40, 0x222222).setStrokeStyle(2, 0x666666);
             
-            // Сама иконка
             const icon = this.add.text(x, startY, data.icon, { fontSize: '26px' }).setOrigin(0.5);
             
-            // Делаем иконку интерактивной
             icon.setInteractive();
             icon.on('pointerdown', () => {
-                // ПОДСКАЗКА
-                // setOrigin(0, 0) означает, что текст рисуется ОТ точки нажатия ВПРАВО и ВНИЗ.
-                // Это гарантирует, что текст не уйдет за левый край экрана.
                 const txt = this.add.text(x + 25, startY + 20, data.desc, { 
                     fontSize: '20px', 
                     fontStyle: 'bold', 
                     color: '#ffffff', 
-                    backgroundColor: '#000000', // Черный фон для читаемости
+                    backgroundColor: '#000000', 
                     padding: { x: 10, y: 10 }
                 }).setOrigin(0, 0).setDepth(3000);
 
-                // Текст исчезнет сам через 3 секунды
                 this.tweens.add({
                     targets: txt,
                     alpha: 0,
@@ -322,7 +295,17 @@ export class BattleScene extends Phaser.Scene {
                 });
             });
         });
-        }) => {
+    }
+
+    setupInput() {
+        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
+            if (!this.isBattleActive) return;
+            const card = gameObject.parentContainer;
+            if (this.zoomedCard) return;
+            if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
+        });
+        
+        this.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
@@ -330,6 +313,7 @@ export class BattleScene extends Phaser.Scene {
             card.setDepth(0);
             if (!dropped) this.returnCardToHand(card);
         });
+
         this.input.on('drop', (pointer, gameObject, dropZone) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
