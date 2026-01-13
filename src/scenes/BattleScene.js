@@ -3,7 +3,7 @@
 import { Unit } from '../prefabs/Unit.js';
 import { Card } from '../prefabs/Card.js';
 import { CARDS_DB } from '../data/cards.js';
-import { RELICS_DB } from '../data/relics.js'; 
+import { RELICS_DB } from '../data/relics.js';
 import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
 import { GameState } from '../GameState.js';
@@ -19,7 +19,7 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        // --- 1. ГЕНЕРАЦИЯ ТЕКСТУР ---
+        // --- 1. ТЕКСТУРЫ ---
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
@@ -27,13 +27,13 @@ export class BattleScene extends Phaser.Scene {
             graphics.generateTexture('flare', 8, 8);
         }
         
-        // --- 2. ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ---
+        // --- 2. МЕНЕДЖЕРЫ ---
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // --- 3. КОЛОДА ---
+        // --- 3. ДАННЫЕ ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
@@ -51,7 +51,7 @@ export class BattleScene extends Phaser.Scene {
 
         this.startNewBattle("slime");
 
-        // --- ТРИГГЕР: НАЧАЛО БОЯ ---
+        // Триггер: Начало боя
         this.relicManager.trigger('onBattleStart');
 
         // --- 6. СТАРТ ---
@@ -60,7 +60,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // ЛОГИКА ИГРЫ
+    // ЛОГИКА
     // =========================================================
 
     startNewBattle(enemyKey) {
@@ -125,27 +125,22 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- КОНЕЦ ХОДА ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        // 1. Враг атакует
         this.enemy.executeIntent(this.player);
 
         if (!this.player.alive) return;
 
-        // 2. Подготовка следующего хода
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
-            // --- СТАТУСЫ ---
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
             }
 
-            // --- ТРИГГЕР: НАЧАЛО ХОДА ---
             this.relicManager.trigger('onTurnStart'); 
 
             if (!this.player.alive) return;
@@ -232,7 +227,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // UI И ВВОД
+    // UI
     // =========================================================
 
     createUI(GW, GH) {
@@ -260,7 +255,6 @@ export class BattleScene extends Phaser.Scene {
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
 
-    // НОВОЕ: ОТРИСОВКА РЕЛИКВИЙ (ИСПРАВЛЕННАЯ)
     createRelicUI() {
         const startX = 50;
         const startY = 40; 
@@ -296,6 +290,10 @@ export class BattleScene extends Phaser.Scene {
             });
         });
     }
+
+    // =========================================================
+    // ВВОД
+    // =========================================================
 
     setupInput() {
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
@@ -341,7 +339,10 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // --- ВСПОМОГАТЕЛЬНЫЕ ---
+    // =========================================================
+    // ВСПОМОГАТЕЛЬНЫЕ
+    // =========================================================
+
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     
     discardHandVisual() { 
@@ -384,4 +385,4 @@ export class BattleScene extends Phaser.Scene {
         this.zoomedCard = null; this.dimmer.setVisible(false); card.toggleMode(false);
         this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2' });
     }
-}
+        }
