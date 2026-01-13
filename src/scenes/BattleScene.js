@@ -17,40 +17,49 @@ export class BattleScene extends Phaser.Scene {
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
 
+        // Загружаем колоду и перемешиваем
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
 
         this.createUI(GW, GH);
 
+        // Игрок
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
         this.player.updateUI();
         this.add.existing(this.player);
 
+        // Враг
         this.startNewBattle("slime");
+
+        // Первый добор карт (5 штук)
         this.drawCards(5);
+
         this.setupInput();
     }
 
-    // --- ЛОГИКА КОЛОДЫ ---
+    // --- ЛОГИКА ДОБОРА КАРТ ---
     drawCards(amount) {
         const GW = this.scale.width;
         
         for (let i = 0; i < amount; i++) {
-            if (this.hand.length >= 6) break; // Максимум 6 карт
+            // Защита: максимум 6 карт в руке
+            if (this.hand.length >= 6) break;
 
+            // Если колода пуста — мешаем сброс
             if (this.drawPile.length === 0) {
                 if (this.discardPile.length > 0) {
                     this.drawPile = Phaser.Utils.Array.Shuffle([...this.discardPile]);
                     this.discardPile = [];
                     this.showFloatingText(100, 500, "Reshuffle!", 0xaaaaaa);
                 } else {
-                    break;
+                    break; // Карт вообще не осталось
                 }
             }
 
+            // Берем карту
             const cardKey = this.drawPile.pop();
             const card = new Card(this, GW/2, this.scale.height + 200, cardKey);
             this.add.existing(card);
@@ -60,63 +69,58 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    discardCard(card) {
-        // Ищем ключ карты перебором (для простоты прототипа)
-        const key = Object.keys(CARDS_DB).find(k => CARDS_DB[k].name === card.cardData.name);
-        this.discardPile.push(key);
-        
-        this.hand = this.hand.filter(c => c !== card);
-        this.tweens.add({ 
-            targets: card, 
-            x: this.trashZone.x, y: this.trashZone.y, 
-            alpha: 0, scale: 0.1, duration: 300, 
-            onComplete: () => { card.destroy(); this.rearrangeHand(); } 
-        });
-        this.updateDeckUI();
-    }
-
-    // --- КОНЕЦ ХОДА (ИЗМЕНЕНО!) ---
+    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО!) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
+        console.log("Ход завершен. Карты в руке ДО атаки врага:", this.hand.length);
+
         // 1. Враг атакует
         this.enemy.executeIntent(this.player);
 
-        // --- УБРАНО: this.discardHand(); ---
-        // Карты теперь остаются в руке!
+        // !!! ВАЖНО: ЗДЕСЬ БОЛЬШЕ НЕТ this.discardHand() !!!
+        // Карты остаются у тебя в руке.
 
         if (!this.player.alive) return;
 
-        // 2. Подготовка нового хода
+        // 2. Подготовка следующего хода
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
             this.player.resetShield(); 
             this.enemy.resetShield();
-            this.enemy.chooseIntent();
+            this.enemy.chooseIntent(); // Враг думает, что делать дальше
             
             this.mana = this.maxMana; 
             this.updateManaUI();
             
-            // 3. ДОБОР КАРТ
-            // Считаем, сколько карт не хватает до 5
+            // 3. ДОБОР ТОЛЬКО НЕДОСТАЮЩИХ
             const cardsNeeded = 5 - this.hand.length;
+            console.log(`У тебя ${this.hand.length} карт. Добираем ${cardsNeeded}.`);
             
             if (cardsNeeded > 0) {
                 this.drawCards(cardsNeeded);
+            } else {
+                this.rearrangeHand(); // Просто поправить карты, если их уже 5 или больше
             }
         });
     }
 
+    // --- ПОБЕДА ---
     handleVictory() {
         this.isBattleActive = false;
+        
+        // Вот здесь мы чистим руку, потому что бой окончен
+        this.discardHandVisual(); 
+
         const GW = this.scale.width;
         const GH = this.scale.height;
 
         GameState.currentHp = this.player.hp;
         GameState.level++;
 
+        // UI Победы
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         const title = this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
 
@@ -130,17 +134,39 @@ export class BattleScene extends Phaser.Scene {
 
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
-                GameState.deck.push(cardKey);
-                this.scene.restart();
+                GameState.deck.push(cardKey); // Сохраняем новую карту
+                this.scene.restart();          // Начинаем заново
             });
-            // Отключаем зум, чтобы не мешал выбору
-            card.bg.removeAllListeners('pointerup');
+            card.bg.removeAllListeners('pointerup'); // Отключаем зум
         });
         
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => {
             this.scene.restart();
         });
+    }
+
+    // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+    
+    discardHandVisual() {
+        // Эта функция просто визуально убирает карты (для конца боя)
+        this.hand.forEach(card => card.destroy());
+        this.hand = [];
+    }
+
+    discardCard(card) {
+        // Ищем ключ
+        const key = Object.keys(CARDS_DB).find(k => CARDS_DB[k].name === card.cardData.name);
+        if (key) this.discardPile.push(key);
+        
+        this.hand = this.hand.filter(c => c !== card);
+        this.tweens.add({ 
+            targets: card, 
+            x: this.trashZone.x, y: this.trashZone.y, 
+            alpha: 0, scale: 0.1, duration: 300, 
+            onComplete: () => { card.destroy(); this.rearrangeHand(); } 
+        });
+        this.updateDeckUI();
     }
 
     startNewBattle(enemyKey) {
@@ -162,6 +188,7 @@ export class BattleScene extends Phaser.Scene {
             const btn = this.add.rectangle(GW/2, GH/2 + 50, 200, 60, 0xffffff).setInteractive().setDepth(2001);
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
             btn.on('pointerdown', () => { 
+                // Сброс всего
                 GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
                 GameState.currentHp = 50;
                 this.scene.restart(); 
@@ -247,13 +274,6 @@ export class BattleScene extends Phaser.Scene {
     }
 
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
-    
-    // ВАЖНО: Эту функцию я не удаляю, так как она нужна для очистки руки при победе
-    // Но в endTurn мы её больше не вызываем.
-    discardHand() { 
-        const cardsToDiscard = [...this.hand];
-        cardsToDiscard.forEach(card => this.discardCard(card));
-    }
     
     rearrangeHand() {
         const GW = this.scale.width; const GH = this.scale.height;
