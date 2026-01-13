@@ -33,6 +33,12 @@ export class BattleScene extends Phaser.Scene {
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); // <-- СОЗДАЕМ МЕНЕДЖЕР РЕЛИКВИЙ
 
+        // --- ТЕСТ: ВЫДАЕМ ГАНТЕЛЮ НА СТАРТЕ ---
+// УДАЛИ ЭТИ 3 СТРОКИ:
+if (GameState.relics.length === 0) {
+    this.relicManager.addRelic("dumbbell");
+}
+
 
         // --- 3. КОЛОДА ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
