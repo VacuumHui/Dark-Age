@@ -1,4 +1,4 @@
-// src/data/relics.js
+// Файл: src/data/relics.js
 
 export const RELICS_DB = {
     // --- ОБЫЧНЫЕ ---
@@ -7,14 +7,15 @@ export const RELICS_DB = {
         desc: "+5 Макс. ХП при поднятии.",
         rarity: "common",
         price: 150,
-        icon: "🍓", // Пока эмодзи, потом спрайт
+        icon: "🍓",
         triggers: {
             "onPickup": [
-                { type: "increase_max_hp", value: 5 },
+                { type: "increase_max_hp", value: 5 }, // <--- ВАЖНАЯ ЗАПЯТАЯ
                 { type: "heal", target: "player", value: 5 }
             ]
         }
-    },
+    }, // <--- ЗАПЯТАЯ МЕЖДУ ПРЕДМЕТАМИ
+
     "dumbbell": {
         name: "Гантеля",
         desc: "В начале боя дает 1 Силу.",
@@ -26,7 +27,7 @@ export const RELICS_DB = {
                 { type: "apply_status", target: "player", status: "strength", value: 1 }
             ]
         }
-    },
+    }, // <--- ЗАПЯТАЯ
 
     // --- РЕДКИЕ ---
     "vampire_amulet": {
@@ -40,7 +41,8 @@ export const RELICS_DB = {
                 { type: "heal", target: "player", value: 3 }
             ]
         }
-    },
+    }, // <--- ЗАПЯТАЯ
+
     "spiked_shield": {
         name: "Шипастый щит",
         desc: "В начале хода дает 2 Шипов.",
@@ -48,8 +50,8 @@ export const RELICS_DB = {
         price: 200,
         icon: "🌵",
         triggers: {
-            "onTurnStart": [ // Срабатывает в начале хода ИГРОКА
-                { type: "apply_status", target: "player", status: "thorns", value: 2 } // "thorns" надо будет добавить в StatusManager
+            "onTurnStart": [
+                { type: "apply_status", target: "player", status: "thorns", value: 2 }
             ]
         }
     }
