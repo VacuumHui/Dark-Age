@@ -34,7 +34,6 @@ export class BattleScene extends Phaser.Scene {
         this.relicManager = new RelicManager(this); // <-- СОЗДАЕМ МЕНЕДЖЕР РЕЛИКВИЙ
 
         
-}
 
 
         // --- 3. КОЛОДА ---
