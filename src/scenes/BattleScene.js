@@ -268,31 +268,7 @@ export class BattleScene extends Phaser.Scene {
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
 
-    // НОВОЕ: ОТРИСОВКА РЕЛИКВИЙ
-    createRelicUI() {
-        const startX = 50;
-        const startY = 40; // Верхний левый угол
-        const gap = 45;
-
-        // Рисуем каждую реликвию из инвентаря
-        GameState.relics.forEach((relicId, index) => {
-            const data = RELICS_DB[relicId];
-            if (!data) return;
-
-            const x = startX + (index * gap);
-            
-            // Рамка
-            this.add.rectangle(x, startY, 36, 36, 0x222222).setStrokeStyle(2, 0x666666);
-            // Иконка (Эмодзи или текст)
-            const icon = this.add.text(x, startY, data.icon, { fontSize: '24px' }).setOrigin(0.5);
-            
-            // Тултип при клике
-            icon.setInteractive();
-            icon.on('pointerdown', () => {
-                this.showFloatingText(x, startY + 50, data.desc, 0xffffff);
-            });
-        });
-    }
+    
 
     setupInput() {
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
@@ -301,7 +277,50 @@ export class BattleScene extends Phaser.Scene {
             if (this.zoomedCard) return;
             if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
         });
-        this.input.on('dragend', (pointer, gameObject, dropped) => {
+        this.input.on('dragend', (pointer, gameObject, dropped// НОВОЕ: ОТРИСОВКА РЕЛИКВИЙ (ИСПРАВЛЕННАЯ)
+    createRelicUI() {
+        const startX = 50;  // Отступ от левого края
+        const startY = 40;  // Отступ сверху
+        const gap = 50;     // Расстояние между иконками
+
+        // Рисуем каждую реликвию из инвентаря
+        GameState.relics.forEach((relicId, index) => {
+            const data = RELICS_DB[relicId];
+            if (!data) return;
+
+            const x = startX + (index * gap);
+            
+            // Рамка иконки
+            this.add.rectangle(x, startY, 40, 40, 0x222222).setStrokeStyle(2, 0x666666);
+            
+            // Сама иконка
+            const icon = this.add.text(x, startY, data.icon, { fontSize: '26px' }).setOrigin(0.5);
+            
+            // Делаем иконку интерактивной
+            icon.setInteractive();
+            icon.on('pointerdown', () => {
+                // ПОДСКАЗКА
+                // setOrigin(0, 0) означает, что текст рисуется ОТ точки нажатия ВПРАВО и ВНИЗ.
+                // Это гарантирует, что текст не уйдет за левый край экрана.
+                const txt = this.add.text(x + 25, startY + 20, data.desc, { 
+                    fontSize: '20px', 
+                    fontStyle: 'bold', 
+                    color: '#ffffff', 
+                    backgroundColor: '#000000', // Черный фон для читаемости
+                    padding: { x: 10, y: 10 }
+                }).setOrigin(0, 0).setDepth(3000);
+
+                // Текст исчезнет сам через 3 секунды
+                this.tweens.add({
+                    targets: txt,
+                    alpha: 0,
+                    duration: 500,
+                    delay: 2500,
+                    onComplete: () => txt.destroy()
+                });
+            });
+        });
+        }) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
