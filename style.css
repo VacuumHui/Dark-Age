@@ -6,7 +6,82 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    font-family: monospace; /* Шрифт для UI */
 }
+
 canvas {
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    display: block; /* Убирает лишние отступы */
+}
+
+/* --- СТАРТОВЫЙ ЭКРАН (Оверлей) --- */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #111;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Поверх игры */
+}
+
+#start-btn {
+    padding: 20px 40px;
+    font-size: 24px;
+    background: #d04040;
+    color: white;
+    border: 2px solid white;
+    cursor: pointer;
+    font-family: monospace;
+    font-weight: bold;
+    text-transform: uppercase;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* --- ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ --- */
+#rotate-message {
+    display: none; /* Скрыто по умолчанию */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 10000;
+    color: white;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.rotate-icon {
+    font-size: 50px;
+    margin-bottom: 20px;
+    animation: rotate-anim 2s infinite ease-in-out;
+}
+
+@keyframes rotate-anim {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+}
+
+/* --- ЛОГИКА ОТОБРАЖЕНИЯ --- */
+
+/* Если экран вертикальный (Portrait) — показываем предупреждение */
+@media screen and (orientation: portrait) {
+    #rotate-message {
+        display: flex;
+    }
 }
