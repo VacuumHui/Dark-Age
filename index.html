@@ -60,5 +60,22 @@
             startScreen.style.display = 'none';
         });
     </script>
+    <!-- ЛОВУШКА ОШИБОК -->
+<div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #ff5555; z-index: 99999; font-size: 14px; pointer-events: none;"></div>
+
+<script>
+    window.onerror = function(message, source, lineno, colno, error) {
+        const consoleDiv = document.getElementById('debug-console');
+        consoleDiv.innerHTML += `<p>ERROR: ${message} <br> (Line: ${lineno})</p>`;
+    };
+    
+    // Перехват ошибок загрузки модулей
+    window.addEventListener('error', (event) => {
+        const consoleDiv = document.getElementById('debug-console');
+        if (event.target.tagName === 'SCRIPT') {
+             consoleDiv.innerHTML += `<p>FAILED TO LOAD SCRIPT: ${event.target.src}</p>`;
+        }
+    }, true);
+</script>
 </body>
 </html>
