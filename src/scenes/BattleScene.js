@@ -198,14 +198,29 @@ export class BattleScene extends Phaser.Scene {
         }
     }
 
-    createUI(GW, GH) {
-        createUI(GW, GH) {
+    
+    
+    updateDeckUI() {
+        this.deckText.setText(`Deck: ${this.drawPile.length}`);
+        this.discardText.setText(`${this.discardPile.length}`);
+    }
+
+    setupInput() {
+        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
+            if (!this.isBattleActive) return;
+            const card = gameObject.parentContainer;
+            if (this.zoomedCard) return;
+            if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
+        });
+        this.input.on('dragend', (pointer, gameObject, dropped) => {
+            if (!this.isBattleActive) return;
+            const card = gameObject.createUI(GW, GH) {
         // UI: Затемнение
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => this.unzoomCard());
         
         // --- БЕЗОПАСНАЯ ЗОНА (ОТСТУПЫ ПОБОЛЬШЕ) ---
-        const PADDING = 60; 
+        const PADDING = 50; 
 
         // Мана (Сдвинули правее и чуть выше)
         this.mana = 3; this.maxMana = 3;
@@ -232,23 +247,8 @@ export class BattleScene extends Phaser.Scene {
         
         // Счетчик сброса (под мусоркой)
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
-        }
-    
-    updateDeckUI() {
-        this.deckText.setText(`Deck: ${this.drawPile.length}`);
-        this.discardText.setText(`${this.discardPile.length}`);
-    }
-
-    setupInput() {
-        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            if (!this.isBattleActive) return;
-            const card = gameObject.parentContainer;
-            if (this.zoomedCard) return;
-            if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
-        });
-        this.input.on('dragend', (pointer, gameObject, dropped) => {
-            if (!this.isBattleActive) return;
-            const card = gameObject.parentContainer;
+            }
+            parentContainer;
             if (this.zoomedCard) return;
             if (Date.now() - card.pressStartTime < 250) return;
             card.setDepth(0);
