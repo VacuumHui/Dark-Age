@@ -5,6 +5,7 @@ import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
 import { GameState } from '../GameState.js';
 import { RewardManager } from '../managers/RewardManager.js';
+import { StatusManager } from '../managers/StatusManager.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -16,6 +17,7 @@ export class BattleScene extends Phaser.Scene {
 
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
+        this.statusManager = new StatusManager(this); // Подключаем менеджер статусов
 
         // Загружаем колоду и перемешиваем
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
@@ -69,48 +71,65 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО!) ---
+    
+
+    // --- ПОБЕДА ---
+    handleVictory() {
+        this.isBattleActive = false;
+        
+   // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО И ДОПОЛНЕНО) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
         console.log("Ход завершен. Карты в руке ДО атаки врага:", this.hand.length);
 
-        // 1. Враг атакует
+        // 1. Враг атакует (выполняет свое намерение)
         this.enemy.executeIntent(this.player);
 
-        // !!! ВАЖНО: ЗДЕСЬ БОЛЬШЕ НЕТ this.discardHand() !!!
-        // Карты остаются у тебя в руке.
+        // ВАЖНО: Карты НЕ сбрасываются автоматически (нет this.discardHand())
 
+        // Проверяем, жив ли игрок после удара
         if (!this.player.alive) return;
 
-        // 2. Подготовка следующего хода
+        // 2. Пауза перед началом твоего нового хода
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
+
+            // --- ОБРАБОТКА СТАТУСОВ (НОВОЕ!) ---
+            if (this.statusManager) {
+                // Сначала завершаем старые эффекты (сгорает временная Сила, Слабость)
+                this.statusManager.onTurnEnd(this.player);
+                
+                // Затем запускаем новые (тикает Яд, Регенерация)
+                this.statusManager.onTurnStart(this.player);
+            }
+
+            // Проверка: вдруг Яд убил игрока?
+            if (!this.player.alive) return;
+            // -----------------------------------
             
             this.player.resetShield(); 
             this.enemy.resetShield();
-            this.enemy.chooseIntent(); // Враг думает, что делать дальше
             
+            // Враг задумывает следующее действие
+            this.enemy.chooseIntent(); 
+            
+            // Восстановление маны
             this.mana = this.maxMana; 
             this.updateManaUI();
             
-            // 3. ДОБОР ТОЛЬКО НЕДОСТАЮЩИХ
+            // 3. ДОБОР КАРТ (Добираем до 5 штук)
             const cardsNeeded = 5 - this.hand.length;
             console.log(`У тебя ${this.hand.length} карт. Добираем ${cardsNeeded}.`);
             
             if (cardsNeeded > 0) {
                 this.drawCards(cardsNeeded);
             } else {
-                this.rearrangeHand(); // Просто поправить карты, если их уже 5 или больше
+                this.rearrangeHand(); // Если карт и так много, просто выравниваем их
             }
         });
     }
-
-    // --- ПОБЕДА ---
-    handleVictory() {
-        this.isBattleActive = false;
-        
         // Вот здесь мы чистим руку, потому что бой окончен
         this.discardHandVisual(); 
 
