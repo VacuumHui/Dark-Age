@@ -199,24 +199,34 @@ export class BattleScene extends Phaser.Scene {
     }
 
     createUI(GW, GH) {
+        // Затемнение
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => this.unzoomCard());
         
+        // --- БЕЗОПАСНАЯ ЗОНА (SAFE AREA) ---
+        const PADDING = 50; // Отступ 50 пикселей, чтобы не прилипало к краю
+
+        // Мана (Сдвинули правее)
         this.mana = 3; this.maxMana = 3;
-        this.manaText = this.add.text(20, GH - 50, `Mana: ${this.mana}/${this.maxMana}`, { fontSize: '32px', color: '#00ffff', fontStyle: 'bold' }).setDepth(10);
+        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
+            fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
+        }).setDepth(10);
         
-        this.endTurnBtn = this.add.rectangle(GW - 80, GH - 150, 140, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
-        this.add.text(GW - 80, GH - 150, "END TURN", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
+        // Кнопка Конец Хода (Сдвинули левее)
+        this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
+        this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
 
-        this.trashZone = this.add.zone(GW - 60, GH - 50, 100, 100).setRectangleDropZone(100, 100);
+        // Мусорка (Сдвинули левее)
+        this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
-        trashG.strokeRect(this.trashZone.x - 50, this.trashZone.y - 50, 100, 100);
-        this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '12px', color: '#666' }).setOrigin(0.5);
+        trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
+        this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
         
-        this.deckText = this.add.text(20, GH - 100, `Deck: ${this.drawPile.length}`, { fontSize: '16px', color: '#aaa' });
-        this.discardText = this.add.text(GW - 60, GH - 100, `0`, { fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
+        // Счетчики
+        this.deckText = this.add.text(PADDING, GH - 110, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#aaa' });
+        this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
     
     updateDeckUI() {
