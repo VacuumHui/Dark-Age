@@ -1,17 +1,60 @@
+// src/data/enemies.js
+
 export const ENEMIES_DB = {
     "slime": {
-        name: "Слайм", hp: 30, color: 0x00aa44,
+        name: "Ядовитый Слайм", 
+        hp: 40, 
+        color: 0x00aa44,
         moves: [
-            { type: "attack", value: 5, chance: 0.5, name: "Тычок" },
-            { type: "defend", value: 5, chance: 0.3, name: "Сжаться" },
-            { type: "strong_attack", value: 8, chance: 0.2, name: "Плевок" }
+            // Обычная атака
+            { 
+                name: "Тычок", 
+                chance: 0.5,
+                actions: [ { type: "damage", value: 6 } ]
+            },
+            // Отравление (Урон + Яд)
+            { 
+                name: "Плевок", 
+                chance: 0.3, 
+                actions: [ 
+                    { type: "damage", value: 3 },
+                    { type: "apply_status", status: "poison", value: 2 } 
+                ]
+            },
+            // Защита
+            { 
+                name: "Сжаться", 
+                chance: 0.2, 
+                target: "self", // Применяем на себя!
+                actions: [ { type: "block", value: 5 } ]
+            }
         ]
     },
     "knight": {
-        name: "Рыцарь", hp: 60, color: 0x440088,
+        name: "Рыцарь", 
+        hp: 80, 
+        color: 0x440088,
         moves: [
-            { type: "attack", value: 10, chance: 0.6, name: "Удар мечом" },
-            { type: "defend", value: 10, chance: 0.4, name: "Блок щитом" }
+            { 
+                name: "Рубящий удар", 
+                chance: 0.5, 
+                actions: [ { type: "damage", value: 10 } ]
+            },
+            { 
+                name: "Боевой клич", 
+                chance: 0.25, 
+                target: "self",
+                actions: [ 
+                    { type: "apply_status", status: "strength", value: 3 }, // Бафф силы!
+                    { type: "block", value: 5 }
+                ]
+            },
+            {
+                name: "Блок щитом",
+                chance: 0.25,
+                target: "self",
+                actions: [ { type: "block", value: 12 } ]
+            }
         ]
     }
 };
