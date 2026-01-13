@@ -2,15 +2,63 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <!-- Важно: запрещаем зум пальцами -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Roguelite Deckbuilder</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- Phaser подключаем как библиотеку -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="src/data/cards.js"></script>
+    <script src="src/data/enemies.js"></script>
 </head>
 <body>
-    <!-- Точка входа в нашу логику -->
+
+    <!-- ЭКРАН СТАРТА -->
+    <div id="start-screen">
+        <h1 style="color: #ffd700; margin-bottom: 30px;">DARK CARD BATTLE</h1>
+        <button id="start-btn">TAP TO START</button>
+        <p style="color: #666; margin-top: 20px;">(Full Screen Mode)</p>
+    </div>
+
+    <!-- ЭКРАН "ПОВЕРНИ ТЕЛЕФОН" -->
+    <div id="rotate-message">
+        <div class="rotate-icon">📱 ⤵️</div>
+        <h2>PLEASE ROTATE DEVICE</h2>
+        <p>Landscape mode required</p>
+    </div>
+
+    <!-- Игра загружается сюда -->
     <script type="module" src="src/main.js"></script>
+
+    <!-- СКРИПТ ПОЛНОГО ЭКРАНА -->
+    <script>
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+
+        startBtn.addEventListener('click', async () => {
+            // 1. Пытаемся включить полный экран
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+                    await document.documentElement.webkitRequestFullscreen();
+                }
+            } catch (err) {
+                console.log("Full screen denied:", err);
+            }
+
+            // 2. Пытаемся заблокировать ориентацию (Работает на Android)
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock("landscape");
+                }
+            } catch (err) {
+                console.log("Orientation lock not supported (iOS usually)");
+            }
+
+            // 3. Скрываем кнопку старта
+            startScreen.style.display = 'none';
+        });
+    </script>
 </body>
 </html>
