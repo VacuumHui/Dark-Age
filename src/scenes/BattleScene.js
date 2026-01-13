@@ -14,65 +14,38 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        // --- 1. СИСТЕМЫ ---
-        // Генерируем текстуру для частиц (белая точка)
-        if (!this.textures.exists('flare')) {
-            const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-            graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(4, 4, 4);
-            graphics.generateTexture('flare', 8, 8);
-        }
-        
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
 
-        // --- 2. КОЛОДА ---
-        // Загружаем колоду из GameState и перемешиваем
+        // Загружаем колоду и перемешиваем
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
 
-        // --- 3. ИНТЕРФЕЙС ---
         this.createUI(GW, GH);
 
-        // --- 4. ЮНИТЫ ---
-        // Игрок (загружаем HP из сохранения)
+        // Игрок
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
         this.player.updateUI();
         this.add.existing(this.player);
 
-        // Враг (Начинаем со слайма)
+        // Враг
         this.startNewBattle("slime");
 
-        // --- 5. СТАРТ ---
         // Первый добор карт (5 штук)
         this.drawCards(5);
+
         this.setupInput();
     }
 
-    // =========================================================
-    // ЛОГИКА ИГРЫ
-    // =========================================================
-
-    startNewBattle(enemyKey) {
-        if (this.enemy) this.enemy.destroy();
-        const GW = this.scale.width; 
-        const GH = this.scale.height;
-        
-        this.enemy = new Unit(this, GW * 0.75, GH * 0.45, enemyKey, false);
-        this.add.existing(this.enemy);
-        
-        this.enemy.chooseIntent(); // Враг задумывает действие
-        this.isBattleActive = true;
-    }
-
+    // --- ЛОГИКА ДОБОРА КАРТ ---
     drawCards(amount) {
         const GW = this.scale.width;
         
         for (let i = 0; i < amount; i++) {
-            // Максимум 6 карт в руке
+            // Защита: максимум 6 карт в руке
             if (this.hand.length >= 6) break;
 
             // Если колода пуста — мешаем сброс
@@ -86,6 +59,7 @@ export class BattleScene extends Phaser.Scene {
                 }
             }
 
+            // Берем карту
             const cardKey = this.drawPile.pop();
             const card = new Card(this, GW/2, this.scale.height + 200, cardKey);
             this.add.existing(card);
@@ -95,28 +69,97 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    playCard(card, target) {
-        const data = card.cardData;
-        
-        // Выполняем действия через ActionManager
-        if (data.actions) { 
-            data.actions.forEach(action => { 
-                executeAction(this, action, this.player, target); 
-            }); 
-        }
+    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО!) ---
+    endTurn() {
+        if (!this.isBattleActive) return;
+        if (this.zoomedCard) this.unzoomCard();
 
-        this.spendMana(data.cost);
-        this.discardCard(card);
+        console.log("Ход завершен. Карты в руке ДО атаки врага:", this.hand.length);
+
+        // 1. Враг атакует
+        this.enemy.executeIntent(this.player);
+
+        // !!! ВАЖНО: ЗДЕСЬ БОЛЬШЕ НЕТ this.discardHand() !!!
+        // Карты остаются у тебя в руке.
+
+        if (!this.player.alive) return;
+
+        // 2. Подготовка следующего хода
+        this.time.delayedCall(1000, () => {
+            if (!this.isBattleActive) return;
+            
+            this.player.resetShield(); 
+            this.enemy.resetShield();
+            this.enemy.chooseIntent(); // Враг думает, что делать дальше
+            
+            this.mana = this.maxMana; 
+            this.updateManaUI();
+            
+            // 3. ДОБОР ТОЛЬКО НЕДОСТАЮЩИХ
+            const cardsNeeded = 5 - this.hand.length;
+            console.log(`У тебя ${this.hand.length} карт. Добираем ${cardsNeeded}.`);
+            
+            if (cardsNeeded > 0) {
+                this.drawCards(cardsNeeded);
+            } else {
+                this.rearrangeHand(); // Просто поправить карты, если их уже 5 или больше
+            }
+        });
+    }
+
+    // --- ПОБЕДА ---
+    handleVictory() {
+        this.isBattleActive = false;
+        
+        // Вот здесь мы чистим руку, потому что бой окончен
+        this.discardHandVisual(); 
+
+        const GW = this.scale.width;
+        const GH = this.scale.height;
+
+        GameState.currentHp = this.player.hp;
+        GameState.level++;
+
+        // UI Победы
+        const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
+        const title = this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+
+        const rewards = this.rewardManager.getRewardOptions(3);
+
+        rewards.forEach((cardKey, index) => {
+            const xOffset = (index - 1) * 120;
+            const card = new Card(this, GW/2 + xOffset, GH/2, cardKey);
+            card.setDepth(2002);
+            this.add.existing(card);
+
+            card.bg.setInteractive();
+            card.bg.on('pointerdown', () => {
+                GameState.deck.push(cardKey); // Сохраняем новую карту
+                this.scene.restart();          // Начинаем заново
+            });
+            card.bg.removeAllListeners('pointerup'); // Отключаем зум
+        });
+        
+        const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
+        skipBtn.on('pointerdown', () => {
+            this.scene.restart();
+        });
+    }
+
+    // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+    
+    discardHandVisual() {
+        // Эта функция просто визуально убирает карты (для конца боя)
+        this.hand.forEach(card => card.destroy());
+        this.hand = [];
     }
 
     discardCard(card) {
-        // Ищем ключ карты в базе
+        // Ищем ключ
         const key = Object.keys(CARDS_DB).find(k => CARDS_DB[k].name === card.cardData.name);
         if (key) this.discardPile.push(key);
         
         this.hand = this.hand.filter(c => c !== card);
-        
-        // Анимация полета в мусорку
         this.tweens.add({ 
             targets: card, 
             x: this.trashZone.x, y: this.trashZone.y, 
@@ -126,189 +169,83 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- КОНЕЦ ХОДА ---
-    endTurn() {
-        if (!this.isBattleActive) return;
-        if (this.zoomedCard) this.unzoomCard();
-
-        // 1. Враг атакует
-        this.enemy.executeIntent(this.player);
-
-        // Карты НЕ сбрасываются (остаются в руке)
-
-        if (!this.player.alive) return; // Если игрок умер, ждем handleUnitDeath
-
-        // 2. Подготовка следующего хода (через секунду)
-        this.time.delayedCall(1000, () => {
-            if (!this.isBattleActive) return;
-            
-            this.player.resetShield(); 
-            this.enemy.resetShield();
-            this.enemy.chooseIntent();
-            
-            this.mana = this.maxMana; 
-            this.updateManaUI();
-            
-            // 3. Добираем карты (до 5 штук)
-            const cardsNeeded = 5 - this.hand.length;
-            if (cardsNeeded > 0) {
-                this.drawCards(cardsNeeded);
-            } else {
-                this.rearrangeHand();
-            }
-        });
+    startNewBattle(enemyKey) {
+        if (this.enemy) this.enemy.destroy();
+        const GW = this.scale.width; const GH = this.scale.height;
+        this.enemy = new Unit(this, GW * 0.75, GH * 0.45, enemyKey, false);
+        this.add.existing(this.enemy);
+        this.enemy.chooseIntent();
+        this.isBattleActive = true;
     }
 
-    // =========================================================
-    // СОБЫТИЯ (Смерть / Победа)
-    // =========================================================
-
     handleUnitDeath(unit) {
-        const GW = this.scale.width; 
-        const GH = this.scale.height;
-
+        const GW = this.scale.width; const GH = this.scale.height;
         if (unit.isPlayer) {
-            // --- ПОРАЖЕНИЕ ---
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
-            
             this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
             this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-            
             const btn = this.add.rectangle(GW/2, GH/2 + 50, 200, 60, 0xffffff).setInteractive().setDepth(2001);
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
-            
             btn.on('pointerdown', () => { 
-                // Сброс всего прогресса
+                // Сброс всего
                 GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
                 GameState.currentHp = 50;
                 this.scene.restart(); 
             });
         } else {
-            // --- ПОБЕДА ---
             this.handleVictory();
         }
     }
 
-    handleVictory() {
-        this.isBattleActive = false;
-        
-        // Визуально убираем карты с экрана
-        this.discardHandVisual(); 
-
-        const GW = this.scale.width;
-        const GH = this.scale.height;
-
-        // Сохраняем прогресс
-        GameState.currentHp = this.player.hp;
-        GameState.level++;
-
-        // Экран награды
-        const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
-        this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-
-        // Генерируем 3 карты
-        const rewards = this.rewardManager.getRewardOptions(3);
-
-        rewards.forEach((cardKey, index) => {
-            const xOffset = (index - 1) * 140; // Чуть шире расставим
-            const card = new Card(this, GW/2 + xOffset, GH/2, cardKey);
-            card.setDepth(2002);
-            this.add.existing(card);
-
-            card.bg.setInteractive();
-            card.bg.on('pointerdown', () => {
-                GameState.deck.push(cardKey); // Добавляем в колоду
-                this.scene.restart();          // Следующий бой
-            });
-            card.bg.removeAllListeners('pointerup'); // Отключаем зум при выборе
-        });
-        
-        // Кнопка пропуска
-        const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
-        skipBtn.on('pointerdown', () => {
-            this.scene.restart();
-        });
-    }
-
-    // =========================================================
-    // UI И ВВОД
-    // =========================================================
-
     createUI(GW, GH) {
-        // Затемнение для зума карт
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => this.unzoomCard());
-        this.zoomedCard = null;
         
-        // Отступы для безопасности (Safe Area)
-        const PADDING = 50; 
-
-        // Мана
         this.mana = 3; this.maxMana = 3;
-        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
-            fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
-        }).setDepth(10);
+        this.manaText = this.add.text(20, GH - 50, `Mana: ${this.mana}/${this.maxMana}`, { fontSize: '32px', color: '#00ffff', fontStyle: 'bold' }).setDepth(10);
         
-        // Кнопка Конец Хода
-        this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
-        this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
+        this.endTurnBtn = this.add.rectangle(GW - 80, GH - 150, 140, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
+        this.add.text(GW - 80, GH - 150, "END TURN", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
 
-        // Мусорка
-        this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
+        this.trashZone = this.add.zone(GW - 60, GH - 50, 100, 100).setRectangleDropZone(100, 100);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
-        trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
-        this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
+        trashG.strokeRect(this.trashZone.x - 50, this.trashZone.y - 50, 100, 100);
+        this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '12px', color: '#666' }).setOrigin(0.5);
         
-        // Счетчики
-        this.deckText = this.add.text(PADDING, GH - 110, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#aaa' });
-        this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
+        this.deckText = this.add.text(20, GH - 100, `Deck: ${this.drawPile.length}`, { fontSize: '16px', color: '#aaa' });
+        this.discardText = this.add.text(GW - 60, GH - 100, `0`, { fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
+    }
+    
+    updateDeckUI() {
+        this.deckText.setText(`Deck: ${this.drawPile.length}`);
+        this.discardText.setText(`${this.discardPile.length}`);
     }
 
     setupInput() {
-        // Драг
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            // Задержка чтобы отличить клик от драга
-            if (Date.now() - card.pressStartTime > 200) { 
-                card.x = pointer.x; 
-                card.y = pointer.y - 80; 
-                card.setDepth(100); 
-            }
+            if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
         });
-
-        // Конец драга
         this.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            
-            // Если это был клик (короткое нажатие) - ничего не делаем тут, сработает зум в Card.js
             if (Date.now() - card.pressStartTime < 250) return;
-            
             card.setDepth(0);
             if (!dropped) this.returnCardToHand(card);
         });
-
-        // Дроп (Розыгрыш карты)
         this.input.on('drop', (pointer, gameObject, dropZone) => {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            
             const data = card.cardData;
+            if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
 
-            // Сброс в мусорку
-            if (dropZone.name === "discard_zone") { 
-                this.discardCard(card); 
-                return; 
-            }
-
-            // Определение цели
             let validTarget = null;
             if (dropZone.name === "enemy_target" && this.enemy.alive) {
                 if (data.target === 'enemy' || data.target === 'any') validTarget = this.enemy;
@@ -322,76 +259,48 @@ export class BattleScene extends Phaser.Scene {
             if (validTarget) {
                 if (this.mana < data.cost) {
                     this.showFloatingText(card.x, card.y, "No Mana!", 0x00ffff);
-                    this.returnCardToHand(card); 
-                    return;
+                    this.returnCardToHand(card); return;
                 }
                 this.playCard(card, validTarget);
-            } else { 
-                this.returnCardToHand(card); 
-            }
+            } else { this.returnCardToHand(card); }
         });
     }
 
-    // =========================================================
-    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // =========================================================
+    playCard(card, target) {
+        const data = card.cardData;
+        if (data.actions) { data.actions.forEach(action => { executeAction(this, action, this.player, target); }); }
+        this.spendMana(data.cost);
+        this.discardCard(card);
+    }
 
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     
-    discardHandVisual() { 
-        this.hand.forEach(card => card.destroy()); 
-        this.hand = []; 
-    }
-    
     rearrangeHand() {
         const GW = this.scale.width; const GH = this.scale.height;
-        const cardW = 90; 
-        const totalW = this.hand.length * cardW;
+        const cardW = 90; const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
-        
         this.hand.forEach((card, index) => {
-            card.baseX = startX + (index * cardW); 
-            card.baseY = GH - 80;
-            if (card !== this.zoomedCard) { 
-                this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 3, duration: 300 }); 
-            }
+            card.baseX = startX + (index * cardW); card.baseY = GH - 80;
+            if (card !== this.zoomedCard) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 3, duration: 300 }); }
         });
     }
-    
-    returnCardToHand(card) { 
-        this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); 
-    }
-    
+    returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
     updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); }
-    
-    updateDeckUI() {
-        this.deckText.setText(`Deck: ${this.drawPile.length}`);
-        this.discardText.setText(`${this.discardPile.length}`);
-    }
-    
     showFloatingText(x, y, message, color) {
         const txt = this.add.text(x, y, message, { fontSize: '24px', fontStyle: 'bold', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
         txt.setTint(color);
         this.tweens.add({ targets: txt, y: y - 80, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
     }
-    
     zoomCard(card) {
-        if (this.zoomedCard) return; 
-        this.zoomedCard = card;
-        this.dimmer.setVisible(true); 
-        this.children.bringToTop(this.dimmer); 
-        this.children.bringToTop(card);
+        if (this.zoomedCard) return; this.zoomedCard = card;
+        this.dimmer.setVisible(true); this.children.bringToTop(this.dimmer); this.children.bringToTop(card);
         card.savedX = card.x; card.savedY = card.y; card.savedAngle = card.angle; card.savedScale = card.scale;
         card.toggleMode(true);
         this.tweens.add({ targets: card, x: this.scale.width / 2, y: this.scale.height / 2, angle: 0, scale: 2.5, duration: 300, ease: 'Back.out' });
     }
-    
     unzoomCard() {
-        if (!this.zoomedCard) return; 
-        const card = this.zoomedCard;
-        this.zoomedCard = null; 
-        this.dimmer.setVisible(false); 
-        card.toggleMode(false);
+        if (!this.zoomedCard) return; const card = this.zoomedCard;
+        this.zoomedCard = null; this.dimmer.setVisible(false); card.toggleMode(false);
         this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2' });
     }
 }
