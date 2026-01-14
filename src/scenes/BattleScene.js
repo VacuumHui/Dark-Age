@@ -162,7 +162,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // СОБЫТИЯ
+    // СОБЫТИЯ (ИСПРАВЛЕНО)
     // =========================================================
 
     handleUnitDeath(unit) {
@@ -170,6 +170,7 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
 
         if (unit.isPlayer) {
+            // ПОРАЖЕНИЕ
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
             
@@ -180,12 +181,16 @@ export class BattleScene extends Phaser.Scene {
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
             
             btn.on('pointerdown', () => { 
+                // СБРОС ВСЕГО И ВОЗВРАТ НА КАРТУ (НОВУЮ)
                 GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
                 GameState.relics = []; 
                 GameState.currentHp = 50;
-                this.scene.restart(); 
+                GameState.mapData = null; // Обнуляем карту
+                
+                this.scene.start('MapScene'); 
             });
         } else {
+            // ПОБЕДА
             this.relicManager.trigger('onKill', { victim: unit });
             this.handleVictory();
         }
@@ -215,14 +220,16 @@ export class BattleScene extends Phaser.Scene {
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
                 GameState.deck.push(cardKey);
-                this.scene.restart();
+                // ВОЗВРАТ НА КАРТУ
+                this.scene.start('MapScene');
             });
             card.bg.removeAllListeners('pointerup');
         });
         
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => {
-            this.scene.restart();
+            // ВОЗВРАТ НА КАРТУ
+            this.scene.start('MapScene');
         });
     }
 
@@ -385,4 +392,4 @@ export class BattleScene extends Phaser.Scene {
         this.zoomedCard = null; this.dimmer.setVisible(false); card.toggleMode(false);
         this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2' });
     }
-        }
+}
