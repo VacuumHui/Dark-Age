@@ -1,5 +1,6 @@
 // src/main.js
 import { BattleScene } from './scenes/BattleScene.js';
+import { MapScene } from './scenes/MapScene.js';
 
 const config = {
     type: Phaser.AUTO,
