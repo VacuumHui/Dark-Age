@@ -2,87 +2,99 @@
 
 export class MapManager {
     constructor() {
-        this.floors = 10; // Длина карты (количество этажей)
-        
-        // Веса для рандома (пока простые)
+        this.floors = 12; // Сделаем карту подлиннее
         this.nodeTypes = [
-            { type: 'battle', weight: 70 },
-            { type: 'event', weight: 10 },
+            { type: 'battle', weight: 55 },
+            { type: 'event', weight: 20 },
             { type: 'shop', weight: 10 },
-            { type: 'rest', weight: 10 }
+            { type: 'rest', weight: 15 }
         ];
     }
 
     generateMap() {
         const map = [];
 
-        // 1. ГЕНЕРАЦИЯ СЕТКИ (СЛЕВА НАПРАВО)
+        // 1. ГЕНЕРАЦИЯ ЭТАЖЕЙ
         for (let x = 0; x < this.floors; x++) {
             const layer = [];
-            // Сколько узлов на этаже? (Первый и последний - по 1, в середине 2-3)
-            const count = (x === 0 || x === this.floors - 1) ? 1 : Math.floor(Math.random() * 2) + 2;
             
-            for (let y = 0; y < count; y++) {
-                // Тип комнаты
+            // ПРАВИЛО:
+            // 0 этаж = 1 узел (Старт)
+            // Последний этаж = 1 узел (Босс)
+            // Середина = 3-5 узлов (Чтобы было где разгуляться)
+            let count;
+            if (x === 0 || x === this.floors - 1) count = 1;
+            else if (x === this.floors - 2) count = 2; // Перед боссом сужаем
+            else count = Math.floor(Math.random() * 3) + 3; // 3, 4 или 5 комнат
+            
+            // Центрируем узлы по вертикали (y), чтобы карта была красивой елочкой
+            // y будет не 0,1,2, а, например, 1,2,3, если ряд широкий
+            const offsetY = (5 - count) / 2; 
+
+            for (let i = 0; i < count; i++) {
                 let type = 'battle';
                 if (x === 0) type = 'start';
                 else if (x === this.floors - 1) type = 'boss';
-                else if (x === this.floors - 2) type = 'rest'; // Перед боссом костер
+                else if (x === this.floors - 2) type = 'rest'; 
                 else type = this.getRandomType();
 
                 layer.push({
-                    id: `${x}-${y}`, // Уникальный ID (этаж-номер)
-                    x: x,            // Этаж
-                    y: y,            // Позиция по вертикали
+                    id: `${x}-${i}`,
+                    x: x,
+                    y: offsetY + i, // Сдвигаем Y для красоты
                     type: type,
-                    status: 'locked',   // locked, available, completed
-                    visible: (x === 0), // Туман войны: виден только 1 этаж сразу
-                    connections: []     // Куда ведет этот узел
+                    status: (x === 0) ? 'available' : 'locked',
+                    visible: (x === 0),
+                    connections: []
                 });
             }
             map.push(layer);
         }
 
-        // 2. СОЗДАНИЕ СВЯЗЕЙ (CONNECTIONS)
+        // 2. СОЗДАНИЕ ВЕТВЛЕНИЙ (ПАУТИНА)
         for (let x = 0; x < this.floors - 1; x++) {
             const currentLayer = map[x];
             const nextLayer = map[x + 1];
 
+            // Для каждого узла текущего слоя
             currentLayer.forEach(node => {
-                // Связываем с узлом справа, который ближе всего по высоте (y)
-                // Это простая логика, чтобы линии не пересекались безумно
-                const ratio = node.y / (currentLayer.length - 1 || 1);
-                const targetIndex = Math.round(ratio * (nextLayer.length - 1));
+                // Ищем узлы в следующем слое, которые БЛИЗКО по высоте (y)
+                const neighbors = nextLayer.filter(next => Math.abs(next.y - node.y) <= 1.5);
                 
-                // Гарантированная связь
-                const targetNode = nextLayer[targetIndex];
-                node.connections.push(targetNode.id);
+                // Обязательно соединяем с одним случайным соседом
+                if (neighbors.length > 0) {
+                    const primary = Phaser.Utils.Array.GetRandom(neighbors);
+                    node.connections.push(primary.id);
 
-                // Случайная доп. связь (ветвление)
-                if (Math.random() > 0.5 && nextLayer.length > 1) {
-                    const neighborIndex = targetIndex + (Math.random() > 0.5 ? 1 : -1);
-                    if (nextLayer[neighborIndex]) {
-                        const neighborId = nextLayer[neighborIndex].id;
-                        if (!node.connections.includes(neighborId)) {
-                            node.connections.push(neighborId);
+                    // С вероятностью 70% соединяем со ВТОРЫМ соседом (Ветвление!)
+                    neighbors.forEach(n => {
+                        if (n.id !== primary.id && Math.random() < 0.7) {
+                            node.connections.push(n.id);
                         }
-                    }
+                    });
                 }
             });
 
-            // ПРОВЕРКА СИРОТ: У каждого узла след. слоя должен быть родитель
+            // ПРОВЕРКА СИРОТ (Orphans)
+            // Если у узла в следующем слое нет входящих связей, соединяем его с ближайшим предком
             nextLayer.forEach(nextNode => {
                 const hasParent = currentLayer.some(n => n.connections.includes(nextNode.id));
                 if (!hasParent) {
-                    const randomParent = currentLayer[Math.floor(Math.random() * currentLayer.length)];
-                    randomParent.connections.push(nextNode.id);
+                    // Ищем ближайшего по Y из предыдущего слоя
+                    let closestParent = currentLayer[0];
+                    let minDiff = 999;
+                    currentLayer.forEach(parent => {
+                        const diff = Math.abs(parent.y - nextNode.y);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestParent = parent;
+                        }
+                    });
+                    closestParent.connections.push(nextNode.id);
                 }
             });
         }
 
-        // Открываем первый узел
-        map[0][0].status = 'available';
-        
         return map;
     }
 
@@ -96,9 +108,7 @@ export class MapManager {
         return 'battle';
     }
 
-    // ЛОГИКА ТУМАНА ВОЙНЫ: Открываем следующие узлы
     static unlockNextLayer(mapData, currentNodeId) {
-        // Находим текущий узел в массиве
         let currentNode = null;
         for (let layer of mapData) {
             const found = layer.find(n => n.id === currentNodeId);
@@ -106,25 +116,17 @@ export class MapManager {
         }
 
         if (!currentNode) return;
-
         currentNode.status = 'completed';
 
-        // Смотрим следующий слой
         const nextLayerIndex = currentNode.x + 1;
         if (nextLayerIndex < mapData.length) {
             const nextLayer = mapData[nextLayerIndex];
-            
             nextLayer.forEach(nextNode => {
-                // Если наш текущий узел связан с этим следующим
                 if (currentNode.connections.includes(nextNode.id)) {
-                    nextNode.visible = true;    // Убираем туман
-                    nextNode.status = 'available'; // Разрешаем вход
+                    nextNode.visible = true;
+                    nextNode.status = 'available';
                 } else {
-                    // Остальные узлы на следующем этаже блокируем (мы пошли по другой ветке)
-                    if (nextNode.status !== 'completed') {
-                        nextNode.status = 'locked';
-                        // nextNode.visible = false; // Можно скрыть, а можно оставить видимым, но серым
-                    }
+                    if (nextNode.status !== 'completed') nextNode.status = 'locked';
                 }
             });
         }
