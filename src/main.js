@@ -16,7 +16,7 @@ const config = {
     // Делаем фон черным, чтобы сливался с рамками на очень длинных телефонах
     backgroundColor: '#000000', 
     pixelArt: true,
-    scene: [BattleScene]
+    scene: [MapScene,BattleScene]
 };
 
 const game = new Phaser.Game(config);
