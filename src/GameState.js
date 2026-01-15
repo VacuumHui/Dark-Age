@@ -1,21 +1,35 @@
 // src/GameState.js
 
-export const GameState = {
-    // Стартовая колода: 2 Удара, 3 Обороны
-    deck: ["strike", "strike", "defend", "defend", "defend"], 
+// Помощник для создания уникальной карты
+export function createCardInstance(cardId) {
+    return {
+        id: cardId,                 // Ссылка на базу данных (например, "strike")
+        uid: Date.now() + Math.random(), // Уникальный номер (чтобы отличать эту карту от других таких же)
+        enchants: []                // Место под будущие зачарования
+    };
+}
 
-    relics: [], // <-- СПИСОК ID РЕЛИКВИЙ (например, ["strawberry", "dumbbell"])
-    // Здоровье героя (чтобы сохранялось между боями)
+export const GameState = {
+    // ТЕПЕРЬ ЭТО МАССИВ ОБЪЕКТОВ, А НЕ СТРОК
+    deck: [
+        createCardInstance("strike"),
+        createCardInstance("strike"),
+        createCardInstance("strike"),
+        createCardInstance("defend"),
+        createCardInstance("defend"),
+        createCardInstance("defend")
+    ],
+    
+    relics: [],
     maxHp: 50,
     currentHp: 50,
-    gold: 0,    // <-- ВАЛЮТА
-
-    // --- КАРТА (НОВОЕ) ---
-    mapData: null,      // Здесь будет лежать вся структура (массив этажей)
-    currentFloor: 0,    // На каком мы этаже (0..9)
-    currentNode: null,  // ID узла, где мы стоим сейчас (для сохранения пути)
-    mapGenerated: false, // Флаг генерации
+    gold: 0,
     
-    // Текущий уровень (можно использовать для усиления врагов)
+    // Карта
+    mapData: null,
+    currentFloor: 0,
+    currentNode: null,
+    mapGenerated: false,
+    
     level: 1
 };
