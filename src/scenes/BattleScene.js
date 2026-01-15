@@ -34,6 +34,8 @@ export class BattleScene extends Phaser.Scene {
         this.relicManager = new RelicManager(this); 
 
         // --- 3. ДАННЫЕ ---
+        // Важно: drawPile - это ТЕКУЩАЯ стопка добора в бою.
+        // GameState.deck - это ПОЛНАЯ колода игрока (для просмотра).
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
@@ -60,7 +62,74 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // ЛОГИКА
+    // ПРОСМОТР КОЛОДЫ (НОВОЕ!)
+    // =========================================================
+
+    openDeckView() {
+        const GW = this.scale.width;
+        const GH = this.scale.height;
+
+        // Создаем контейнер, если его нет
+        if (!this.deckContainer) {
+            this.deckContainer = this.add.container(0, 0).setDepth(3000).setScrollFactor(0);
+        }
+        
+        this.deckContainer.removeAll(true); // Чистим старое
+        this.deckContainer.setVisible(true);
+        
+        // Затемнение (очень высокое)
+        this.dimmer.setDepth(2999).setVisible(true);
+
+        // Заголовок
+        const title = this.add.text(GW/2, 50, `FULL DECK (${GameState.deck.length})`, { 
+            fontSize: '40px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5);
+        this.deckContainer.add(title);
+
+        // Рисуем сетку карт
+        const startX = 150;
+        const startY = 150;
+        const gapX = 120;
+        const gapY = 160;
+        const cardsPerRow = Math.floor((GW - 200) / gapX);
+
+        // Сортируем для красоты
+        const sortedDeck = [...GameState.deck].sort(); 
+
+        sortedDeck.forEach((cardKey, index) => {
+            const col = index % cardsPerRow;
+            const row = Math.floor(index / cardsPerRow);
+
+            const x = startX + (col * gapX);
+            const y = startY + (row * gapY);
+
+            // Создаем карту визуально
+            const card = new Card(this, x, y, cardKey);
+            // Отключаем перетаскивание, оставляем только зум
+            this.input.setDraggable(card.bg, false);
+            
+            this.deckContainer.add(card);
+        });
+
+        // Кнопка закрытия
+        const closeBtn = this.add.text(GW/2, GH - 80, "[ CLOSE VIEW ]", { 
+            fontSize: '30px', color: '#ff5555', fontStyle: 'bold', backgroundColor: '#000'
+        }).setOrigin(0.5).setInteractive();
+        
+        closeBtn.on('pointerdown', () => this.closeDeckView());
+        this.deckContainer.add(closeBtn);
+    }
+
+    closeDeckView() {
+        if (this.deckContainer) {
+            this.deckContainer.setVisible(false);
+        }
+        this.dimmer.setVisible(false);
+        this.unzoomCard();
+    }
+
+    // =========================================================
+    // ЛОГИКА ИГРЫ
     // =========================================================
 
     startNewBattle(enemyKey) {
@@ -162,7 +231,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // СОБЫТИЯ (ИСПРАВЛЕНО)
+    // СОБЫТИЯ
     // =========================================================
 
     handleUnitDeath(unit) {
@@ -170,7 +239,6 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
 
         if (unit.isPlayer) {
-            // ПОРАЖЕНИЕ
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
             
@@ -181,16 +249,13 @@ export class BattleScene extends Phaser.Scene {
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
             
             btn.on('pointerdown', () => { 
-                // СБРОС ВСЕГО И ВОЗВРАТ НА КАРТУ (НОВУЮ)
                 GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
                 GameState.relics = []; 
                 GameState.currentHp = 50;
-                GameState.mapData = null; // Обнуляем карту
-                
+                GameState.mapData = null;
                 this.scene.start('MapScene'); 
             });
         } else {
-            // ПОБЕДА
             this.relicManager.trigger('onKill', { victim: unit });
             this.handleVictory();
         }
@@ -220,7 +285,6 @@ export class BattleScene extends Phaser.Scene {
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
                 GameState.deck.push(cardKey);
-                // ВОЗВРАТ НА КАРТУ
                 this.scene.start('MapScene');
             });
             card.bg.removeAllListeners('pointerup');
@@ -228,37 +292,53 @@ export class BattleScene extends Phaser.Scene {
         
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => {
-            // ВОЗВРАТ НА КАРТУ
             this.scene.start('MapScene');
         });
     }
 
     // =========================================================
-    // UI
+    // UI И ВВОД
     // =========================================================
 
     createUI(GW, GH) {
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
-        this.dimmer.on('pointerdown', () => this.unzoomCard());
+        
+        // Умный клик по затемнению (закрывает зум ИЛИ колоду)
+        this.dimmer.on('pointerdown', () => {
+            if (this.zoomedCard) this.unzoomCard();
+            else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView();
+        });
         
         const PADDING = 50; 
 
+        // Мана
         this.mana = 3; this.maxMana = 3;
         this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
             fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
         }).setDepth(10);
         
+        // Кнопка Конец Хода
         this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
         this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
 
+        // Мусорка
         this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
         trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
         this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
         
-        this.deckText = this.add.text(PADDING, GH - 110, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#aaa' });
+        // КНОПКА "VIEW DECK" (НОВОЕ!)
+        const deckBtnX = PADDING + 40; 
+        const deckBtnY = GH - 120;
+        this.deckBtn = this.add.rectangle(deckBtnX, deckBtnY, 140, 40, 0x333333).setInteractive().setStrokeStyle(2, 0x888888);
+        this.deckText = this.add.text(deckBtnX, deckBtnY, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
+        
+        // При клике открываем ПОЛНУЮ колоду
+        this.deckBtn.on('pointerdown', () => this.openDeckView());
+
+        // Счетчик сброса
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
 
@@ -280,31 +360,20 @@ export class BattleScene extends Phaser.Scene {
             icon.setInteractive();
             icon.on('pointerdown', () => {
                 const txt = this.add.text(x + 25, startY + 20, data.desc, { 
-                    fontSize: '20px', 
-                    fontStyle: 'bold', 
-                    color: '#ffffff', 
-                    backgroundColor: '#000000', 
-                    padding: { x: 10, y: 10 }
+                    fontSize: '20px', fontStyle: 'bold', color: '#ffffff', backgroundColor: '#000000', padding: { x: 10, y: 10 }
                 }).setOrigin(0, 0).setDepth(3000);
 
-                this.tweens.add({
-                    targets: txt,
-                    alpha: 0,
-                    duration: 500,
-                    delay: 2500,
-                    onComplete: () => txt.destroy()
-                });
+                this.tweens.add({ targets: txt, alpha: 0, duration: 500, delay: 2500, onComplete: () => txt.destroy() });
             });
         });
     }
 
-    // =========================================================
-    // ВВОД
-    // =========================================================
-
     setupInput() {
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.isBattleActive) return;
+            // Блокируем, если открыта колода
+            if (this.deckContainer && this.deckContainer.visible) return;
+            
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
             if (Date.now() - card.pressStartTime > 200) { card.x = pointer.x; card.y = pointer.y - 80; card.setDepth(100); }
@@ -346,10 +415,7 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // =========================================================
-    // ВСПОМОГАТЕЛЬНЫЕ
-    // =========================================================
-
+    // --- ВСПОМОГАТЕЛЬНЫЕ ---
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     
     discardHandVisual() { 
@@ -370,6 +436,7 @@ export class BattleScene extends Phaser.Scene {
     updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); }
     
     updateDeckUI() {
+        // Текст на кнопке показывает сколько карт в колоде добора (Draw Pile)
         this.deckText.setText(`Deck: ${this.drawPile.length}`);
         this.discardText.setText(`${this.discardPile.length}`);
     }
@@ -380,16 +447,79 @@ export class BattleScene extends Phaser.Scene {
         this.tweens.add({ targets: txt, y: y - 80, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
     }
     
+    // --- ЗУМ КАРТЫ С "ВЫРЫВАНИЕМ" ИЗ КОНТЕЙНЕРА (ЧТОБЫ БЫЛА ПОВЕРХ ЗАТЕМНЕНИЯ) ---
     zoomCard(card) {
-        if (this.zoomedCard) return; this.zoomedCard = card;
-        this.dimmer.setVisible(true); this.children.bringToTop(this.dimmer); this.children.bringToTop(card);
-        card.savedX = card.x; card.savedY = card.y; card.savedAngle = card.angle; card.savedScale = card.scale;
+        if (this.zoomedCard) return; 
+        this.zoomedCard = card;
+        
+        // Если карта в контейнере колоды - выносим её на сцену
+        if (card.parentContainer) {
+            this.parentContainerRef = card.parentContainer;
+            card.savedContainerX = card.x;
+            card.savedContainerY = card.y;
+            
+            const worldPos = card.getWorldTransformMatrix();
+            card.x = worldPos.tx;
+            card.y = worldPos.ty;
+            
+            card.parentContainer.remove(card);
+            this.add.existing(card);
+        }
+
+        this.dimmer.setDepth(2999).setVisible(true); // Затемнение под картой
+        card.setDepth(3001); // Карта поверх всего
+        card.setScrollFactor(0);
+
+        card.savedX = card.x; 
+        card.savedY = card.y; 
+        card.savedAngle = card.angle; 
+        card.savedScale = card.scale;
+        
         card.toggleMode(true);
-        this.tweens.add({ targets: card, x: this.scale.width / 2, y: this.scale.height / 2, angle: 0, scale: 2.5, duration: 300, ease: 'Back.out' });
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: this.scale.width / 2, 
+            y: this.scale.height / 2, 
+            angle: 0, 
+            scale: 2.5, 
+            duration: 300, 
+            ease: 'Back.out' 
+        });
     }
+    
     unzoomCard() {
-        if (!this.zoomedCard) return; const card = this.zoomedCard;
-        this.zoomedCard = null; this.dimmer.setVisible(false); card.toggleMode(false);
-        this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2' });
+        if (!this.zoomedCard) return; 
+        const card = this.zoomedCard;
+        this.zoomedCard = null; 
+        
+        card.toggleMode(false);
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: card.savedX, 
+            y: card.savedY, 
+            angle: card.savedAngle, 
+            scale: 1, 
+            duration: 250, 
+            ease: 'Power2',
+            onComplete: () => {
+                // Возвращаем в контейнер
+                if (this.parentContainerRef) {
+                    this.parentContainerRef.add(card);
+                    card.x = card.savedContainerX;
+                    card.y = card.savedContainerY;
+                    this.parentContainerRef = null;
+                }
+                
+                // Если открыта колода - затемнение остается
+                if (this.deckContainer && this.deckContainer.visible) {
+                    this.dimmer.setDepth(2999);
+                } else {
+                    this.dimmer.setVisible(false);
+                }
+                card.setDepth(0);
+            }
+        });
     }
 }
