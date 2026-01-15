@@ -215,15 +215,26 @@ export class MapScene extends Phaser.Scene {
                 GameState.currentFloor = node.x;
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
                 
-                // === ВОТ ЗДЕСЬ БЫЛА ОШИБКА, ТЕПЕРЬ ИСПРАВЛЕНО ===
-                if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
-                    this.scene.start('BattleScene');
-                } else if (node.type === 'rest') {
-                    this.scene.start('RestScene'); // Переход к костру
-                } else {
-                    alert("Заглушка: " + node.type);
-                    this.scene.start('BattleScene');
-                }
+                // Сцены
+
+if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
+    this.scene.start('BattleScene');
+} 
+else if (node.type === 'rest') {
+    this.scene.start('RestScene');
+}
+// --- НОВЫЕ ПЕРЕХОДЫ ---
+else if (node.type === 'event') {
+    this.scene.start('EventScene');
+}
+else if (node.type === 'shop') {
+    this.scene.start('ShopScene');
+}
+// ----------------------
+else {
+    alert("Ошибка: Неизвестная комната");
+}
+                    
             });
         }
     }
