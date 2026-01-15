@@ -1,6 +1,8 @@
+
 // src/main.js
 import { BattleScene } from './scenes/BattleScene.js';
-import { MapScene } from './scenes/MapScene.js'; // <--- ВАЖНО: Импорт новой сцены
+import { MapScene } from './scenes/MapScene.js';
+import { RestScene } from './scenes/RestScene.js'; // <-- Добавили
 
 const config = {
     type: Phaser.AUTO,
@@ -12,9 +14,8 @@ const config = {
     },
     backgroundColor: '#000000',
     pixelArt: true,
-    // ВАЖНО: MapScene должна быть ПЕРВОЙ в списке!
-    // Первая сцена в массиве запускается автоматически при старте.
-    scene: [MapScene, BattleScene] 
+    // Добавляем RestScene в список
+    scene: [MapScene, BattleScene, RestScene] 
 };
 
 const game = new Phaser.Game(config);
