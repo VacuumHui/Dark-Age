@@ -1,7 +1,7 @@
 // Файл: src/scenes/MapScene.js
 
 import { Card } from '../prefabs/Card.js'; 
-import { GameState, createCardInstance } from '../GameState.js'; // <-- Импорт хелпера
+import { GameState } from '../GameState.js';
 import { MapManager } from '../managers/MapManager.js';
 
 export class MapScene extends Phaser.Scene {
@@ -26,20 +26,31 @@ export class MapScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
         this.add.rectangle(0, 0, mapWidth, mapHeight, 0x110f0a).setOrigin(0);
         
+        // --- ЗАТЕМНЕНИЕ ---
         this.dimmer = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85)
-            .setOrigin(0).setScrollFactor(0).setVisible(false).setDepth(900).setInteractive();
+            .setOrigin(0)
+            .setScrollFactor(0)
+            .setVisible(false)
+            .setDepth(900)
+            .setInteractive();
             
         this.dimmer.on('pointerdown', () => {
-            if (this.zoomedCard) this.unzoomCard();
-            else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView();
+            if (this.zoomedCard) {
+                this.unzoomCard();
+            } else if (this.deckContainer && this.deckContainer.visible) {
+                this.closeDeckView();
+            }
         });
 
         this.zoomedCard = null;
 
         this.add.text(50, 50, "MAP", { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
+        // КНОПКА КОЛОДЫ
         const deckBtn = this.add.rectangle(this.scale.width - 150, 60, 200, 60, 0x333333)
-            .setScrollFactor(0).setStrokeStyle(2, 0xffffff).setInteractive();
+            .setScrollFactor(0)
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive();
             
         this.add.text(this.scale.width - 150, 60, `DECK (${GameState.deck.length})`, { 
             fontSize: '24px', fontStyle: 'bold' 
@@ -47,6 +58,7 @@ export class MapScene extends Phaser.Scene {
 
         deckBtn.on('pointerdown', () => this.openDeckView());
 
+        // --- ОТРИСОВКА ---
         const graphics = this.add.graphics();
         graphics.lineStyle(4, 0x665544);
 
@@ -54,7 +66,10 @@ export class MapScene extends Phaser.Scene {
 
         GameState.mapData.forEach((layer) => {
             layer.forEach((node) => {
-                nodePositions[node.id] = { x: startX + (node.x * stepX), y: startY + (node.y * stepY) };
+                nodePositions[node.id] = { 
+                    x: startX + (node.x * stepX), 
+                    y: startY + (node.y * stepY) 
+                };
             });
         });
 
@@ -81,10 +96,12 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
+        // Камера
         const currentX = startX + (GameState.currentFloor * stepX);
         const centerX = currentX - (this.scale.width / 2);
         this.cameras.main.scrollX = Math.max(0, centerX);
 
+        // Управление свайпом
         let isDown = false;
         let startDragX = 0;
         let startCameraX = 0;
@@ -93,6 +110,7 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer) => {
             if (this.deckContainer && this.deckContainer.visible) return;
             if (this.zoomedCard) return;
+
             isDown = true;
             this.isDragging = false;
             startDragX = pointer.x;
@@ -113,6 +131,8 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerout', () => { isDown = false; });
     }
 
+    // --- КОЛОДА ---
+    
     openDeckView() {
         if (!this.deckContainer) {
             this.deckContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(1000);
@@ -127,8 +147,10 @@ export class MapScene extends Phaser.Scene {
         }).setOrigin(0.5);
         this.deckContainer.add(title);
 
-        const startX = 150; const startY = 150;
-        const gapX = 120; const gapY = 160;
+        const startX = 150;
+        const startY = 150;
+        const gapX = 120;
+        const gapY = 160;
         const cardsPerRow = Math.floor((this.scale.width - 100) / gapX);
 
         // Сортируем объекты (по ID)
@@ -140,7 +162,6 @@ export class MapScene extends Phaser.Scene {
             const x = startX + (col * gapX);
             const y = startY + (row * gapY);
 
-            // Передаем объект-инстанс
             const card = new Card(this, x, y, cardInstance);
             this.input.setDraggable(card.bg, false);
             
@@ -163,6 +184,7 @@ export class MapScene extends Phaser.Scene {
         this.unzoomCard();
     }
 
+    // --- ЗУМ ---
     zoomCard(card) {
         if (this.zoomedCard) return; 
         this.zoomedCard = card;
@@ -178,8 +200,8 @@ export class MapScene extends Phaser.Scene {
             this.add.existing(card);
         }
 
-        this.dimmer.setDepth(2999).setVisible(true);
-        card.setDepth(3001);
+        this.dimmer.setDepth(2000).setVisible(true);
+        card.setDepth(2001);
         card.setScrollFactor(0);
 
         card.savedX = card.x; 
@@ -274,8 +296,11 @@ export class MapScene extends Phaser.Scene {
                 GameState.currentFloor = node.x;
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
 
+                // --- ВОТ ЗДЕСЬ ИЗМЕНЕНИЯ ---
                 if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
                     this.scene.start('BattleScene');
+                } else if (node.type === 'rest') {
+                    this.scene.start('RestScene'); // Переход в сцену Лагеря
                 } else {
                     alert("Заглушка: " + node.type);
                     this.scene.start('BattleScene');
