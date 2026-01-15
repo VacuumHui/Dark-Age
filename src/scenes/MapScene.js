@@ -1,5 +1,7 @@
-// src/scenes/MapScene.js
+// Файл: src/scenes/MapScene.js
 
+import { Unit } from '../prefabs/Unit.js'; // Нужно для ссылок, если понадобятся
+import { Card } from '../prefabs/Card.js'; // <-- Импортируем Карту, чтобы рисовать её
 import { GameState } from '../GameState.js';
 import { MapManager } from '../managers/MapManager.js';
 
@@ -7,6 +9,7 @@ export class MapScene extends Phaser.Scene {
     constructor() { super({ key: 'MapScene' }); }
 
     create() {
+        // 1. Генерация карты (если нет)
         if (!GameState.mapGenerated) {
             const manager = new MapManager();
             GameState.mapData = manager.generateMap();
@@ -14,33 +17,60 @@ export class MapScene extends Phaser.Scene {
             GameState.currentFloor = 0;
         }
 
-        // Параметры
+        // --- НАСТРОЙКИ ---
         const startX = 150;
-        const startY = 100; // Отступ сверху
-        const stepX = 250;  // Шире шаг, чтобы было место
-        const stepY = 120; 
+        const startY = 100;
+        const stepX = 250; 
+        const stepY = 120;
 
-        // Расчет размеров
+        // Расчет размеров мира для камеры
         const mapWidth = startX + (GameState.mapData.length * stepX) + 400;
-        const mapHeight = this.scale.height; // Высота фиксирована экраном
+        const mapHeight = this.scale.height;
 
         // Камера и Фон
         this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
         this.add.rectangle(0, 0, mapWidth, mapHeight, 0x110f0a).setOrigin(0);
         
-        // Текст (не скроллится)
+        // --- UI (Фиксированный) ---
+        // Затемнение для зума (как в бою)
+        this.dimmer = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85)
+            .setOrigin(0)
+            .setScrollFactor(0) // Не двигается с камерой
+            .setVisible(false)
+            .setDepth(900)
+            .setInteractive();
+            
+        this.dimmer.on('pointerdown', () => {
+            this.unzoomCard();
+            this.closeDeckView(); // Также закрывает меню колоды
+        });
+
+        this.zoomedCard = null;
+
+        // Заголовок
         this.add.text(50, 50, "MAP", { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
-        // --- ОТРИСОВКА ---
+        // КНОПКА "КОЛОДА" (Новое!)
+        const deckBtn = this.add.rectangle(this.scale.width - 150, 60, 200, 60, 0x333333)
+            .setScrollFactor(0)
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive();
+            
+        const deckText = this.add.text(this.scale.width - 150, 60, `DECK (${GameState.deck.length})`, { 
+            fontSize: '24px', fontStyle: 'bold' 
+        }).setOrigin(0.5).setScrollFactor(0);
+
+        deckBtn.on('pointerdown', () => this.openDeckView());
+
+        // --- ОТРИСОВКА КАРТЫ ---
         const graphics = this.add.graphics();
         graphics.lineStyle(4, 0x665544);
 
         const nodePositions = {};
 
-        // 1. Координаты
+        // Координаты
         GameState.mapData.forEach((layer) => {
             layer.forEach((node) => {
-                // y зависит от node.y (который мы центрировали в генераторе)
                 nodePositions[node.id] = { 
                     x: startX + (node.x * stepX), 
                     y: startY + (node.y * stepY) 
@@ -48,13 +78,12 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
-        // 2. Линии
+        // Линии
         GameState.mapData.forEach(layer => {
             layer.forEach(node => {
                 if (node.visible && node.connections) {
                     node.connections.forEach(targetId => {
                         const targetNode = this.findNodeById(targetId);
-                        // Рисуем, если целевой узел видим ИЛИ если мы стоим в текущем узле (показываем путь вперед)
                         if (targetNode && (targetNode.visible || node.status === 'completed')) {
                             const start = nodePositions[node.id];
                             const end = nodePositions[targetId];
@@ -65,7 +94,7 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
-        // 3. Узлы
+        // Узлы
         GameState.mapData.forEach(layer => {
             layer.forEach(node => {
                 if (!node.visible) return;
@@ -75,8 +104,6 @@ export class MapScene extends Phaser.Scene {
         });
 
         // --- УПРАВЛЕНИЕ КАМЕРОЙ ---
-        
-        // Центрируем камеру на текущем этаже при старте
         const currentX = startX + (GameState.currentFloor * stepX);
         const centerX = currentX - (this.scale.width / 2);
         this.cameras.main.scrollX = Math.max(0, centerX);
@@ -85,11 +112,15 @@ export class MapScene extends Phaser.Scene {
         let isDown = false;
         let startDragX = 0;
         let startCameraX = 0;
-        this.isDragging = false; // Флаг: мы двигаем карту или кликаем?
+        this.isDragging = false;
 
         this.input.on('pointerdown', (pointer) => {
+            // Если открыт просмотр колоды или зум - не двигаем карту
+            if (this.deckContainer && this.deckContainer.visible) return;
+            if (this.zoomedCard) return;
+
             isDown = true;
-            this.isDragging = false; // Сброс
+            this.isDragging = false;
             startDragX = pointer.x;
             startCameraX = this.cameras.main.scrollX;
         });
@@ -97,7 +128,6 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointermove', (pointer) => {
             if (isDown) {
                 const diff = startDragX - pointer.x;
-                // Если палец сдвинулся больше чем на 10px, считаем это скроллом
                 if (Math.abs(diff) > 10) {
                     this.isDragging = true;
                     this.cameras.main.scrollX = startCameraX + diff;
@@ -108,6 +138,143 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerup', () => { isDown = false; });
         this.input.on('pointerout', () => { isDown = false; });
     }
+
+    // --- ЛОГИКА ПРОСМОТРА КОЛОДЫ (НОВОЕ) ---
+    
+    openDeckView() {
+        // Если контейнер еще не создан
+        if (!this.deckContainer) {
+            this.deckContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(1000);
+        }
+        
+        // Очищаем старое (на случай если колода изменилась)
+        this.deckContainer.removeAll(true);
+        this.deckContainer.setVisible(true);
+        this.dimmer.setVisible(true).setDepth(999); // Фон
+
+        // Заголовок
+        const title = this.add.text(this.scale.width/2, 50, "YOUR DECK", { 
+            fontSize: '40px', fontStyle: 'bold', color: '#ffffff' 
+        }).setOrigin(0.5);
+        this.deckContainer.add(title);
+
+        // Сетка карт
+        const startX = 150;
+        const startY = 150;
+        const gapX = 120;
+        const gapY = 160;
+        const cardsPerRow = Math.floor((this.scale.width - 100) / gapX);
+
+        // Сортируем колоду (по стоимости, потом по имени)
+        // Копируем, чтобы не менять порядок в GameState
+        const sortedDeck = [...GameState.deck].sort(); 
+
+        sortedDeck.forEach((cardKey, index) => {
+            const col = index % cardsPerRow;
+            const row = Math.floor(index / cardsPerRow);
+
+            const x = startX + (col * gapX);
+            const y = startY + (row * gapY);
+
+            const card = new Card(this, x, y, cardKey);
+            // Отключаем драг, оставляем только клик (зум)
+            this.input.setDraggable(card.bg, false);
+            
+            this.deckContainer.add(card);
+        });
+
+        // Кнопка закрытия
+        const closeBtn = this.add.text(this.scale.width/2, this.scale.height - 50, "[ CLOSE ]", { 
+            fontSize: '30px', color: '#ff5555' 
+        }).setOrigin(0.5).setInteractive();
+        
+        closeBtn.on('pointerdown', () => this.closeDeckView());
+        this.deckContainer.add(closeBtn);
+    }
+
+    closeDeckView() {
+        if (this.deckContainer) {
+            this.deckContainer.setVisible(false);
+        }
+        this.dimmer.setVisible(false);
+        this.unzoomCard();
+    }
+
+    // --- ЗУМ КАРТ (Копия из BattleScene, нужна для работы Card.js) ---
+    zoomCard(card) {
+        if (this.zoomedCard) return; 
+        
+        // Если карта внутри контейнера (колоды), нужно учесть это при анимации
+        // Но пока просто зумим по центру экрана
+        
+        this.zoomedCard = card;
+        
+        // Переносим карту из контейнера в сцену (временно), чтобы она была поверх всего
+        if (card.parentContainer && card.parentContainer !== this) {
+            card.originalParent = card.parentContainer;
+            card.originalIndex = card.parentContainer.getIndex(card);
+            // Конвертируем координаты из локальных в глобальные
+            const worldPos = card.parentContainer.getBounds(); // Это грубо, лучше просто запомнить x,y
+            // Так как контейнер на 0,0 и scrollFactor 0, локальные = глобальные
+        }
+
+        // Поднимаем слой затемнения еще выше
+        this.dimmer.setDepth(2000).setVisible(true);
+        card.setDepth(2001);
+        // Если карта была в контейнере с ScrollFactor 0, она и так не скроллится. 
+        // Если нет (будущие механики), надо ставить scrollFactor(0).
+        card.setScrollFactor(0);
+
+        card.savedX = card.x; 
+        card.savedY = card.y; 
+        card.savedAngle = card.angle; 
+        card.savedScale = card.scale;
+        
+        card.toggleMode(true);
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: this.scale.width / 2, 
+            y: this.scale.height / 2, 
+            angle: 0, 
+            scale: 2.5, 
+            duration: 300, 
+            ease: 'Back.out' 
+        });
+    }
+    
+    unzoomCard() {
+        if (!this.zoomedCard) return; 
+        const card = this.zoomedCard;
+        this.zoomedCard = null; 
+        
+        // Если открыта колода, затемнение остается (слой 999), иначе убираем
+        if (this.deckContainer && this.deckContainer.visible) {
+            this.dimmer.setDepth(999); 
+        } else {
+            this.dimmer.setVisible(false);
+        }
+
+        card.toggleMode(false);
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: card.savedX, 
+            y: card.savedY, 
+            angle: card.savedAngle, 
+            scale: 1, 
+            duration: 250, 
+            ease: 'Power2',
+            onComplete: () => {
+                // Если карта была частью контейнера, можно вернуть её в иерархию, 
+                // но Phaser Container сложный. Пока оставим так, 
+                // визуально она вернется на место.
+                card.setDepth(0);
+            }
+        });
+    }
+
+    // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ КАРТЫ ---
 
     findNodeById(id) {
         for (let layer of GameState.mapData) {
@@ -127,7 +294,6 @@ export class MapScene extends Phaser.Scene {
         } else if (node.status === 'available') {
             color = 0xffaa00; stroke = 0xffffff;
             interactive = true;
-            // Пульсация только для доступных
             this.tweens.add({ targets: this.add.circle(x, y, 35, 0xffaa00, 0.2), scale: 1.3, alpha: 0, duration: 1000, repeat: -1 });
         }
 
@@ -146,7 +312,6 @@ export class MapScene extends Phaser.Scene {
         if (interactive) {
             circle.setInteractive();
             circle.on('pointerup', () => {
-                // ВАЖНО: Если мы скроллили карту (isDragging), клик НЕ должен сработать
                 if (this.isDragging) return;
 
                 GameState.currentNode = node.id;
