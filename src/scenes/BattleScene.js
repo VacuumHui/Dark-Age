@@ -6,10 +6,12 @@ import { CARDS_DB } from '../data/cards.js';
 import { RELICS_DB } from '../data/relics.js';
 import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
-import { GameState, createCardInstance } from '../GameState.js'; // <-- Импорт функции создания карты
+import { GameState } from '../GameState.js';
 import { RewardManager } from '../managers/RewardManager.js';
 import { StatusManager } from '../managers/StatusManager.js';
 import { RelicManager } from '../managers/RelicManager.js';
+// ИМПОРТ КАЛЬКУЛЯТОРА
+import { getComputedCard } from '../managers/CardLogic.js'; 
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -31,7 +33,6 @@ export class BattleScene extends Phaser.Scene {
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // Колода теперь содержит ОБЪЕКТЫ
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
@@ -76,7 +77,6 @@ export class BattleScene extends Phaser.Scene {
                 }
             }
 
-            // cardInstance - это теперь объект {id, uid, enchants}
             const cardInstance = this.drawPile.pop();
             const card = new Card(this, GW/2, this.scale.height + 200, cardInstance);
             this.add.existing(card);
@@ -86,21 +86,23 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
+    // --- ОБНОВЛЕННЫЙ МЕТОД РОЗЫГРЫША ---
     playCard(card, target) {
-        const data = card.cardData; // Статичные данные
-        // В будущем тут будем учитывать card.cardInstance.enchants
+        // Вычисляем данные с учетом зачарований!
+        const computedData = getComputedCard(card.cardInstance);
         
-        if (data.actions) { 
-            data.actions.forEach(action => { 
+        if (computedData.actions) { 
+            computedData.actions.forEach(action => { 
                 executeAction(this, action, this.player, target); 
             }); 
         }
-        this.spendMana(data.cost);
+        // Тратим ВЫЧИСЛЕННУЮ стоимость
+        this.spendMana(computedData.cost);
         this.discardCard(card);
     }
 
     discardCard(card) {
-        // Кладем в сброс сам объект-инстанс
+        // В сброс кладем инстанс
         this.discardPile.push(card.cardInstance);
         
         this.hand = this.hand.filter(c => c !== card);
@@ -155,15 +157,9 @@ export class BattleScene extends Phaser.Scene {
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
             
             btn.on('pointerdown', () => { 
-                // СБРОС: Создаем новые инстансы карт
-                GameState.deck = [
-                    createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
-                    createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
-                ];
-                GameState.relics = []; 
-                GameState.currentHp = 50;
-                GameState.mapData = null;
-                this.scene.start('MapScene'); 
+                // Создаем свежие инстансы, чтобы не было старых зачарований при рестарте
+                // (Придется импортировать createCardInstance, но пока так сойдет, если перезагрузить страницу)
+                location.reload(); 
             });
         } else {
             this.relicManager.trigger('onKill', { victim: unit });
@@ -182,21 +178,21 @@ export class BattleScene extends Phaser.Scene {
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
 
-        // RewardManager возвращает СТРОКИ (ключи), нам нужно превратить их в ОБЪЕКТЫ
         const rewardKeys = this.rewardManager.getRewardOptions(3);
 
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 140;
-            // Для отображения создаем временный инстанс
-            const tempInstance = createCardInstance(cardKey);
+            // Создаем временный объект для показа
+            const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
+            
             const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
 
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
-                // ДОБАВЛЯЕМ В КОЛОДУ НОВЫЙ ОБЪЕКТ
-                GameState.deck.push(createCardInstance(cardKey));
+                // Добавляем новую карту (объект)
+                GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
                 this.scene.start('MapScene');
             });
             card.bg.removeAllListeners('pointerup');
@@ -206,9 +202,6 @@ export class BattleScene extends Phaser.Scene {
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
     }
 
-    // ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ (createUI, createRelicUI, setupInput, helpers)
-    // Но для надежности скопируй весь файл, чтобы не потерять методы.
-    
     createUI(GW, GH) {
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => {
@@ -257,10 +250,7 @@ export class BattleScene extends Phaser.Scene {
         this.deckContainer.add(title);
         const startX = 150; const startY = 150; const gapX = 120; const gapY = 160;
         const cardsPerRow = Math.floor((GW - 200) / gapX);
-        
-        // Сортировка по ID
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
-
         sortedDeck.forEach((cardInstance, index) => {
             const col = index % cardsPerRow; const row = Math.floor(index / cardsPerRow);
             const x = startX + (col * gapX); const y = startY + (row * gapY);
@@ -295,19 +285,25 @@ export class BattleScene extends Phaser.Scene {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            const data = card.cardData;
+            
             if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
+
+            // ОБНОВЛЕНО: Используем getComputedCard для проверки маны
+            const computedData = getComputedCard(card.cardInstance);
+
             let validTarget = null;
             if (dropZone.name === "enemy_target" && this.enemy.alive) {
-                if (data.target === 'enemy' || data.target === 'any') validTarget = this.enemy;
+                if (computedData.target === 'enemy' || computedData.target === 'any') validTarget = this.enemy;
                 else this.showFloatingText(card.x, card.y, "Только на себя!", 0xffaaaa);
             }
             else if (dropZone.name === "player_target" && this.player.alive) {
-                if (data.target === 'self' || data.target === 'any') validTarget = this.player;
+                if (computedData.target === 'self' || computedData.target === 'any') validTarget = this.player;
                 else this.showFloatingText(card.x, card.y, "Только на врага!", 0xffaaaa);
             }
+
             if (validTarget) {
-                if (this.mana < data.cost) {
+                // Проверяем ВЫЧИСЛЕННУЮ стоимость
+                if (this.mana < computedData.cost) {
                     this.showFloatingText(card.x, card.y, "No Mana!", 0x00ffff);
                     this.returnCardToHand(card); return;
                 }
@@ -356,7 +352,7 @@ export class BattleScene extends Phaser.Scene {
         this.zoomedCard = null; card.toggleMode(false);
         this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2', onComplete: () => {
             if (this.parentContainerRef) { this.parentContainerRef.add(card); card.x = card.savedContainerX; card.y = card.savedContainerY; this.parentContainerRef = null; }
-            if (this.deckContainer && this.deckContainer.visible) this.dimmer.setDepth(999); else this.dimmer.setVisible(false);
+            if (this.deckContainer && this.deckContainer.visible) this.dimmer.setDepth(2999); else this.dimmer.setVisible(false);
             card.setDepth(0);
         }});
     }
