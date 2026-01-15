@@ -2,7 +2,10 @@
 // src/main.js
 import { BattleScene } from './scenes/BattleScene.js';
 import { MapScene } from './scenes/MapScene.js';
-import { RestScene } from './scenes/RestScene.js'; // <-- Добавили
+import { RestScene } from './scenes/RestScene.js'; 
+import { EventScene } from './scenes/EventScene.js'; // <-- NEW
+import { ShopScene } from './scenes/ShopScene.js';   // <-- NEW
+
 
 const config = {
     type: Phaser.AUTO,
@@ -15,7 +18,7 @@ const config = {
     backgroundColor: '#000000',
     pixelArt: true,
     // Добавляем RestScene в список
-    scene: [MapScene, BattleScene, RestScene] 
+    scene: [MapScene, BattleScene, RestScene, EventScene, ShopScene] 
 };
 
 const game = new Phaser.Game(config);
