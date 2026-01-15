@@ -10,7 +10,6 @@ import { GameState } from '../GameState.js';
 import { RewardManager } from '../managers/RewardManager.js';
 import { StatusManager } from '../managers/StatusManager.js';
 import { RelicManager } from '../managers/RelicManager.js';
-// ИМПОРТ КАЛЬКУЛЯТОРА
 import { getComputedCard } from '../managers/CardLogic.js'; 
 
 export class BattleScene extends Phaser.Scene {
@@ -86,9 +85,7 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    // --- ОБНОВЛЕННЫЙ МЕТОД РОЗЫГРЫША ---
     playCard(card, target) {
-        // Вычисляем данные с учетом зачарований!
         const computedData = getComputedCard(card.cardInstance);
         
         if (computedData.actions) { 
@@ -96,15 +93,12 @@ export class BattleScene extends Phaser.Scene {
                 executeAction(this, action, this.player, target); 
             }); 
         }
-        // Тратим ВЫЧИСЛЕННУЮ стоимость
         this.spendMana(computedData.cost);
         this.discardCard(card);
     }
 
     discardCard(card) {
-        // В сброс кладем инстанс
         this.discardPile.push(card.cardInstance);
-        
         this.hand = this.hand.filter(c => c !== card);
         this.tweens.add({ 
             targets: card, 
@@ -115,19 +109,33 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
+    // --- ИСПРАВЛЕННЫЙ КОНЕЦ ХОДА (ПОЧИНЕН ЯД) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
+        // 1. НАЧАЛО ХОДА ВРАГА (Здесь тикает ЯД на враге!)
+        if (this.statusManager) {
+            this.statusManager.onTurnStart(this.enemy);
+            // Если яд убил врага - прерываем
+            if (!this.enemy.alive) return; 
+        }
+
+        // 2. Враг атакует
         this.enemy.executeIntent(this.player);
 
         if (!this.player.alive) return;
 
+        // 3. Подготовка хода игрока
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
+            // Враг закончил ход - сбрасываем его временные баффы (Сила и т.д.)
+            if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
+
+            // Игрок начинает ход - тикает ЯД на игроке, сбрасывается старая сила
             if (this.statusManager) {
-                this.statusManager.onTurnEnd(this.player);   
+                this.statusManager.onTurnEnd(this.player);
                 this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
@@ -137,6 +145,7 @@ export class BattleScene extends Phaser.Scene {
             this.player.resetShield(); 
             this.enemy.resetShield();
             this.enemy.chooseIntent();
+            
             this.mana = this.maxMana; 
             this.updateManaUI();
             
@@ -146,6 +155,7 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    // ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ
     handleUnitDeath(unit) {
         const GW = this.scale.width; const GH = this.scale.height;
         if (unit.isPlayer) {
@@ -155,10 +165,7 @@ export class BattleScene extends Phaser.Scene {
             this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
             const btn = this.add.rectangle(GW/2, GH/2 + 50, 200, 60, 0xffffff).setInteractive().setDepth(2001);
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
-            
             btn.on('pointerdown', () => { 
-                // Создаем свежие инстансы, чтобы не было старых зачарований при рестарте
-                // (Придется импортировать createCardInstance, но пока так сойдет, если перезагрузить страницу)
                 location.reload(); 
             });
         } else {
@@ -170,34 +177,25 @@ export class BattleScene extends Phaser.Scene {
     handleVictory() {
         this.isBattleActive = false;
         this.discardHandVisual(); 
-
         const GW = this.scale.width; const GH = this.scale.height;
         GameState.currentHp = this.player.hp;
         GameState.level++;
-
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-
         const rewardKeys = this.rewardManager.getRewardOptions(3);
-
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 140;
-            // Создаем временный объект для показа
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
-            
             const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
-
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
-                // Добавляем новую карту (объект)
                 GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
                 this.scene.start('MapScene');
             });
             card.bg.removeAllListeners('pointerup');
         });
-        
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
     }
@@ -288,7 +286,6 @@ export class BattleScene extends Phaser.Scene {
             
             if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
 
-            // ОБНОВЛЕНО: Используем getComputedCard для проверки маны
             const computedData = getComputedCard(card.cardInstance);
 
             let validTarget = null;
@@ -302,7 +299,6 @@ export class BattleScene extends Phaser.Scene {
             }
 
             if (validTarget) {
-                // Проверяем ВЫЧИСЛЕННУЮ стоимость
                 if (this.mana < computedData.cost) {
                     this.showFloatingText(card.x, card.y, "No Mana!", 0x00ffff);
                     this.returnCardToHand(card); return;
