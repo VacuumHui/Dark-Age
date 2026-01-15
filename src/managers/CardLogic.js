@@ -3,54 +3,84 @@
 import { CARDS_DB } from '../data/cards.js';
 import { ENCHANTS_DB } from '../data/enchants.js';
 
-export function getComputedCard(cardInstance) {
-    // 1. Берем шаблон из базы
-    const baseData = CARDS_DB[cardInstance.id];
+// Словарь: как переводить код действия в текст
+const ACTION_TEXTS = {
+    damage: (val) => `Урон: ${val}`,
+    block: (val) => `Блок: ${val}`,
+    heal: (val) => `Хил: ${val}`,
+    heal_owner: (val) => `Вампиризм: ${val}`,
+    restore_mana: (val) => `Мана: +${val}`,
+    draw: (val) => `Добор: ${val}`,
+    increase_max_hp: (val) => `Макс ХП: +${val}`,
     
-    if (!baseData) {
-        console.error(`Card ID "${cardInstance.id}" not found in DB!`);
-        return null;
+    // Для статусов нужна доп. логика имен
+    apply_status: (val, status) => {
+        const names = {
+            poison: "Яд",
+            weak: "Слабость",
+            vulnerable: "Уязвимость",
+            strength: "Сила",
+            thorns: "Шипы",
+            rage: "Ярость"
+        };
+        return `${names[status] || status}: ${val}`;
     }
+};
 
-    // 2. Делаем ПОЛНУЮ КОПИЮ данных (чтобы не испортить базу)
-    // Это гарантирует, что мы работаем с уникальным набором действий
+export function getComputedCard(cardInstance) {
+    // 1. Берем базу
+    const baseData = CARDS_DB[cardInstance.id];
+    if (!baseData) return null;
+
+    // 2. Глубокая копия (чтобы не портить базу)
     let finalCard = JSON.parse(JSON.stringify(baseData));
 
-    // Если зачарований нет - отдаем чистую копию
-    if (!cardInstance.enchants || cardInstance.enchants.length === 0) {
-        return finalCard;
+    // 3. ПРИМЕНЯЕМ ЗАЧАРОВАНИЯ
+    if (cardInstance.enchants && cardInstance.enchants.length > 0) {
+        cardInstance.enchants.forEach(enchantId => {
+            const enchant = ENCHANTS_DB[enchantId];
+            if (!enchant) return;
+
+            // Изменение цифр
+            if (enchant.type === 'stat_modifier') {
+                if (enchant.targetParam === 'cost') {
+                    finalCard.cost += enchant.value;
+                    if (finalCard.cost < 0) finalCard.cost = 0;
+                } else {
+                    // Ищем действие и меняем его значение
+                    const action = finalCard.actions.find(a => a.type === enchant.targetParam);
+                    if (action) action.value += enchant.value;
+                }
+            } 
+            // Добавление новых действий
+            else if (enchant.type === 'add_action') {
+                // Копируем действие из зачарования и добавляем в список
+                finalCard.actions.push(JSON.parse(JSON.stringify(enchant.action)));
+            }
+        });
     }
 
-    // 3. Применяем каждое зачарование по очереди
-    cardInstance.enchants.forEach(enchantId => {
-        const enchant = ENCHANTS_DB[enchantId];
-        if (!enchant) return;
+    // 4. ГЕНЕРАЦИЯ ОПИСАНИЯ (Dynamic Description)
+    // Мы полностью игнорируем текст из базы (desc) и собираем его заново по фактам.
+    
+    let descriptionLines = [];
 
-        // ТИП А: Изменение цифр (Урон, Блок, Стоимость)
-        if (enchant.type === 'stat_modifier') {
-            
-            // Снижение стоимости
-            if (enchant.targetParam === 'cost') {
-                finalCard.cost += enchant.value;
-                if (finalCard.cost < 0) finalCard.cost = 0;
-            } 
-            // Увеличение Урона или Блока
-            else {
-                // Ищем действие в массиве (например, 'damage') и меняем его value
-                const actionToMod = finalCard.actions.find(a => a.type === enchant.targetParam);
-                if (actionToMod) {
-                    actionToMod.value += enchant.value;
+    if (finalCard.actions) {
+        finalCard.actions.forEach(action => {
+            let textGenerator = ACTION_TEXTS[action.type];
+            if (textGenerator) {
+                // Если это статус, передаем еще и имя статуса
+                if (action.type === 'apply_status') {
+                    descriptionLines.push(textGenerator(action.value, action.status));
+                } else {
+                    descriptionLines.push(textGenerator(action.value));
                 }
             }
-        } 
-        
-        // ТИП Б: Добавление НОВОГО действия (Хил, Яд)
-        else if (enchant.type === 'add_action') {
-            // Создаем копию действия из зачарования
-            const newAction = JSON.parse(JSON.stringify(enchant.action));
-            finalCard.actions.push(newAction);
-        }
-    });
+        });
+    }
+
+    // Сохраняем сгенерированный текст в объект
+    finalCard.generatedDesc = descriptionLines.join("\n");
 
     return finalCard;
 }
