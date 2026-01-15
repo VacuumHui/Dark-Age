@@ -1,10 +1,17 @@
+// src/prefabs/Card.js
+
 import { CARDS_DB } from '../data/cards.js';
 
 export class Card extends Phaser.GameObjects.Container {
-    constructor(scene, x, y, key) {
+    // constructor принимает теперь cardInstance (объект), а не key (строку)
+    constructor(scene, x, y, cardInstance) {
         super(scene, x, y);
         this.scene = scene;
-        this.cardData = CARDS_DB[key];
+        
+        // Сохраняем инстанс (с зачарованиями) и данные из базы (статичные)
+        this.cardInstance = cardInstance; 
+        this.cardData = CARDS_DB[cardInstance.id]; // Достаем параметры по ID
+        
         this.isZoomed = false;
         
         const w = 100, h = 140;
@@ -14,17 +21,22 @@ export class Card extends Phaser.GameObjects.Container {
 
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         this.art = scene.add.rectangle(0, -30, 80, 60, this.cardData.color);
+        
         this.title = scene.add.text(0, -5, this.cardData.name, { fontSize: '13px', fontStyle:'bold' }).setOrigin(0.5);
         this.shortDesc = scene.add.text(0, 40, this.cardData.desc, { fontSize: '11px', color: '#ccc', align: 'center', wordWrap: {width: 90} }).setOrigin(0.5);
         this.costCircle = scene.add.circle(-40, -60, 12, 0x00ffff);
         this.costText = scene.add.text(-40, -60, this.cardData.cost, { fontSize: '16px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        // Полное описание (пока берем базовое, позже добавим текст зачарований)
         this.fullDesc = scene.add.text(0, 50, this.cardData.fullDesc, { fontSize: '9px', color: '#fff', align: 'center', wordWrap: { width: 90 } }).setOrigin(0.5).setVisible(false);
+
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
 
         this.bg.setInteractive();
         scene.input.setDraggable(this.bg);
         this.bg.parentContainer = this;
         this.pressStartTime = 0;
+
         this.bg.on('pointerdown', () => {
             if (this.isZoomed) this.scene.unzoomCard();
             else { this.pressStartTime = Date.now(); this.scene.children.bringToTop(this); }
