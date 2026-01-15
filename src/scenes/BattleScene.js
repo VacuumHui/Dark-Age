@@ -85,14 +85,27 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    playCard(card, target) {
+    // В src/scenes/BattleScene.js
+
+    playCard(card, selectedTarget) {
         const computedData = getComputedCard(card.cardInstance);
         
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
-                executeAction(this, action, this.player, target); 
+                
+                // ЛОГИКА ВЫБОРА ЦЕЛИ ДЛЯ КОНКРЕТНОГО ДЕЙСТВИЯ
+                let finalTarget = selectedTarget; // По умолчанию - на кого бросили
+
+                // Если действие требует применения на себя (например, Блок или Хил от руны)
+                if (action.target === 'self') {
+                    finalTarget = this.player;
+                }
+                
+                // Выполняем
+                executeAction(this, action, this.player, finalTarget); 
             }); 
         }
+        
         this.spendMana(computedData.cost);
         this.discardCard(card);
     }
