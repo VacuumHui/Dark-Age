@@ -20,7 +20,6 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        // --- 1. СИСТЕМЫ ---
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
@@ -33,16 +32,13 @@ export class BattleScene extends Phaser.Scene {
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // --- 2. КОЛОДА ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
 
-        // --- 3. ИНТЕРФЕЙС ---
         this.createUI(GW, GH);
         this.createRelicUI(); 
 
-        // --- 4. ЮНИТЫ ---
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
@@ -50,11 +46,8 @@ export class BattleScene extends Phaser.Scene {
         this.add.existing(this.player);
 
         this.startNewBattle("slime");
-
-        // Триггер: Начало боя
         this.relicManager.trigger('onBattleStart');
 
-        // --- 5. СТАРТ ---
         this.drawCards(5);
         this.setupInput();
     }
@@ -97,10 +90,8 @@ export class BattleScene extends Phaser.Scene {
         
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
-                // Выбор цели (self или враг)
                 let finalTarget = target;
                 if (action.target === 'self') finalTarget = this.player;
-                
                 executeAction(this, action, this.player, finalTarget); 
             }); 
         }
@@ -120,56 +111,53 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- ИСПРАВЛЕННЫЙ ПОРЯДОК ХОДА ---
+    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        // 1. НАЧАЛО ХОДА ВРАГА
+        // 1. Враг начинает ход
         if (this.statusManager) {
-            this.statusManager.onTurnStart(this.enemy); // Тикает яд на враге
+            this.statusManager.onTurnStart(this.enemy); // Яд
         }
         
-        // ВАЖНО: Сбрасываем щит врага ПЕРЕД его действием.
-        // Если он сейчас наложит новый щит, он сохранится до твоего удара.
+        // СБРОС ЩИТА ВРАГА ПЕРЕД ЕГО ДЕЙСТВИЕМ
         this.enemy.resetShield();
 
-        // 2. ПРОВЕРКА НА КОНТРОЛЬ (Заморозка)
+        // Проверка заморозки
         let skipEnemyTurn = false;
         if (this.statusManager) {
             skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
         }
 
-        // 3. ДЕЙСТВИЕ ВРАГА
+        // Действие врага (тут он может наложить новый щит)
         if (!skipEnemyTurn) {
             this.enemy.executeIntent(this.player);
         } else {
-            console.log("Враг пропускает ход");
+            console.log("Враг заморожен");
         }
 
-        // Если игрок умер - конец
         if (!this.player.alive) return;
 
-        // 4. ПОДГОТОВКА ХОДА ИГРОКА (Таймер)
+        // 2. Подготовка хода игрока
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
-            // Враг закончил ход (сгорает его сила/слабость)
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
 
-            // Игрок заканчивает свой "пассивный" ход и начинает активный
             if (this.statusManager) {
-                this.statusManager.onTurnEnd(this.player);   // Сгорает старая сила игрока
-                this.statusManager.onTurnStart(this.player); // Тикает яд на игроке
+                this.statusManager.onTurnEnd(this.player);   
+                this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
 
             if (!this.player.alive) return;
             
-            // ВАЖНО: Сбрасываем щит игрока ТОЛЬКО сейчас (в начале его хода)
+            // СБРОС ЩИТА ИГРОКА (Враг уже ударил)
             this.player.resetShield(); 
             
-            this.enemy.chooseIntent(); // Враг думает
+            // Враг думает
+            this.enemy.chooseIntent();
             
             this.mana = this.maxMana; 
             this.updateManaUI();
