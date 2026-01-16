@@ -5,6 +5,7 @@ import { MapScene } from './scenes/MapScene.js';
 import { RestScene } from './scenes/RestScene.js'; 
 import { EventScene } from './scenes/EventScene.js'; // <-- NEW
 import { ShopScene } from './scenes/ShopScene.js';   // <-- NEW
+import { UIScene } from './scenes/UIScene.js'; 
 
 
 const config = {
@@ -18,7 +19,7 @@ const config = {
     backgroundColor: '#000000',
     pixelArt: true,
     // Добавляем RestScene в список
-    scene: [MapScene, BattleScene, RestScene, EventScene, ShopScene] 
+    scene: [MapScene, BattleScene, RestScene, EventScene, ShopScene, UIScene]  
 };
 
 const game = new Phaser.Game(config);
