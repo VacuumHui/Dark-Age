@@ -12,9 +12,10 @@ export class MapScene extends Phaser.Scene {
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
+        // Обновляем UI (чтобы показать актуальное здоровье после боя)
         this.game.events.emit('UPDATE_UI');
 
-        // 2. Генерация карты
+        // 2. Генерация карты, если её нет
         if (!GameState.mapGenerated) {
             const manager = new MapManager();
             GameState.mapData = manager.generateMap();
@@ -22,6 +23,7 @@ export class MapScene extends Phaser.Scene {
             GameState.currentFloor = 0;
         }
 
+        // Параметры отрисовки
         const startX = 150;
         const startY = 100;
         const stepX = 250; 
@@ -30,10 +32,11 @@ export class MapScene extends Phaser.Scene {
         const mapWidth = startX + (GameState.mapData.length * stepX) + 400;
         const mapHeight = this.scale.height;
 
+        // Камера и фон
         this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
         this.add.rectangle(0, 0, mapWidth, mapHeight, 0x110f0a).setOrigin(0);
         
-        // --- ЗАТЕМНЕНИЕ ---
+        // --- ЗАТЕМНЕНИЕ (для зума и колоды) ---
         this.dimmer = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85)
             .setOrigin(0)
             .setScrollFactor(0)
@@ -51,10 +54,10 @@ export class MapScene extends Phaser.Scene {
 
         this.zoomedCard = null;
 
+        // Заголовок
         this.add.text(50, 80, "MAP", { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
         // --- КНОПКА КОЛОДЫ ---
-        // Спустили ниже (Y = 130), чтобы не перекрывать UIScene
         const deckBtn = this.add.rectangle(this.scale.width - 150, 130, 200, 60, 0x333333)
             .setScrollFactor(0)
             .setStrokeStyle(2, 0xffffff)
@@ -72,6 +75,7 @@ export class MapScene extends Phaser.Scene {
 
         const nodePositions = {};
 
+        // 1. Координаты
         GameState.mapData.forEach((layer) => {
             layer.forEach((node) => {
                 nodePositions[node.id] = { 
@@ -81,6 +85,7 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
+        // 2. Линии
         GameState.mapData.forEach(layer => {
             layer.forEach(node => {
                 if (node.visible && node.connections) {
@@ -96,7 +101,7 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
-        // --- ОТРИСОВКА УЗЛОВ ---
+        // 3. Узлы
         GameState.mapData.forEach(layer => {
             layer.forEach(node => {
                 if (!node.visible) return;
@@ -105,12 +110,12 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
-        // Камера
+        // Центрируем камеру на текущем этаже
         const currentX = startX + (GameState.currentFloor * stepX);
         const centerX = currentX - (this.scale.width / 2);
         this.cameras.main.scrollX = Math.max(0, centerX);
 
-        // Управление свайпом
+        // --- УПРАВЛЕНИЕ СВАЙПОМ ---
         let isDown = false;
         let startDragX = 0;
         let startCameraX = 0;
@@ -140,7 +145,7 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerout', () => { isDown = false; });
     }
 
-    // --- КОЛОДА ---
+    // --- ФУНКЦИИ КОЛОДЫ ---
     
     openDeckView() {
         if (!this.deckContainer) {
@@ -162,7 +167,7 @@ export class MapScene extends Phaser.Scene {
         const gapY = 160;
         const cardsPerRow = Math.floor((this.scale.width - 100) / gapX);
 
-        // Сортируем объекты (по ID)
+        // Сортировка по ID карты
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
 
         sortedDeck.forEach((cardInstance, index) => {
@@ -193,7 +198,7 @@ export class MapScene extends Phaser.Scene {
         this.unzoomCard();
     }
 
-    // --- ЗУМ ---
+    // --- ФУНКЦИИ ЗУМА ---
     zoomCard(card) {
         if (this.zoomedCard) return; 
         this.zoomedCard = card;
@@ -321,4 +326,4 @@ export class MapScene extends Phaser.Scene {
             });
         }
     }
-} // <--- ВОТ ЭТА СКОБКА ОБЯЗАТЕЛЬНА
+}
