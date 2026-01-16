@@ -20,6 +20,7 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
+        // --- 1. СИСТЕМЫ ---
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
@@ -32,13 +33,16 @@ export class BattleScene extends Phaser.Scene {
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
+        // --- 2. КОЛОДА ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
 
+        // --- 3. ИНТЕРФЕЙС ---
         this.createUI(GW, GH);
         this.createRelicUI(); 
 
+        // --- 4. ЮНИТЫ ---
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
@@ -46,8 +50,11 @@ export class BattleScene extends Phaser.Scene {
         this.add.existing(this.player);
 
         this.startNewBattle("slime");
+
+        // Триггер: Начало боя
         this.relicManager.trigger('onBattleStart');
 
+        // --- 5. СТАРТ ---
         this.drawCards(5);
         this.setupInput();
     }
@@ -85,27 +92,18 @@ export class BattleScene extends Phaser.Scene {
         this.rearrangeHand();
     }
 
-    // В src/scenes/BattleScene.js
-
-    playCard(card, selectedTarget) {
+    playCard(card, target) {
         const computedData = getComputedCard(card.cardInstance);
         
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
+                // Выбор цели (self или враг)
+                let finalTarget = target;
+                if (action.target === 'self') finalTarget = this.player;
                 
-                // ЛОГИКА ВЫБОРА ЦЕЛИ ДЛЯ КОНКРЕТНОГО ДЕЙСТВИЯ
-                let finalTarget = selectedTarget; // По умолчанию - на кого бросили
-
-                // Если действие требует применения на себя (например, Блок или Хил от руны)
-                if (action.target === 'self') {
-                    finalTarget = this.player;
-                }
-                
-                // Выполняем
                 executeAction(this, action, this.player, finalTarget); 
             }); 
         }
-        
         this.spendMana(computedData.cost);
         this.discardCard(card);
     }
@@ -122,42 +120,56 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- ИСПРАВЛЕННЫЙ КОНЕЦ ХОДА (ПОЧИНЕН ЯД) ---
+    // --- ИСПРАВЛЕННЫЙ ПОРЯДОК ХОДА ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        // 1. НАЧАЛО ХОДА ВРАГА (Здесь тикает ЯД на враге!)
+        // 1. НАЧАЛО ХОДА ВРАГА
         if (this.statusManager) {
-            this.statusManager.onTurnStart(this.enemy);
-            // Если яд убил врага - прерываем
-            if (!this.enemy.alive) return; 
+            this.statusManager.onTurnStart(this.enemy); // Тикает яд на враге
+        }
+        
+        // ВАЖНО: Сбрасываем щит врага ПЕРЕД его действием.
+        // Если он сейчас наложит новый щит, он сохранится до твоего удара.
+        this.enemy.resetShield();
+
+        // 2. ПРОВЕРКА НА КОНТРОЛЬ (Заморозка)
+        let skipEnemyTurn = false;
+        if (this.statusManager) {
+            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
         }
 
-        // 2. Враг атакует
-        this.enemy.executeIntent(this.player);
+        // 3. ДЕЙСТВИЕ ВРАГА
+        if (!skipEnemyTurn) {
+            this.enemy.executeIntent(this.player);
+        } else {
+            console.log("Враг пропускает ход");
+        }
 
+        // Если игрок умер - конец
         if (!this.player.alive) return;
 
-        // 3. Подготовка хода игрока
+        // 4. ПОДГОТОВКА ХОДА ИГРОКА (Таймер)
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
-            // Враг закончил ход - сбрасываем его временные баффы (Сила и т.д.)
+            // Враг закончил ход (сгорает его сила/слабость)
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
 
-            // Игрок начинает ход - тикает ЯД на игроке, сбрасывается старая сила
+            // Игрок заканчивает свой "пассивный" ход и начинает активный
             if (this.statusManager) {
-                this.statusManager.onTurnEnd(this.player);
-                this.statusManager.onTurnStart(this.player); 
+                this.statusManager.onTurnEnd(this.player);   // Сгорает старая сила игрока
+                this.statusManager.onTurnStart(this.player); // Тикает яд на игроке
             }
             this.relicManager.trigger('onTurnStart'); 
 
             if (!this.player.alive) return;
             
+            // ВАЖНО: Сбрасываем щит игрока ТОЛЬКО сейчас (в начале его хода)
             this.player.resetShield(); 
-            this.enemy.resetShield();
-            this.enemy.chooseIntent();
+            
+            this.enemy.chooseIntent(); // Враг думает
             
             this.mana = this.maxMana; 
             this.updateManaUI();
@@ -168,7 +180,6 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ
     handleUnitDeath(unit) {
         const GW = this.scale.width; const GH = this.scale.height;
         if (unit.isPlayer) {
@@ -296,7 +307,7 @@ export class BattleScene extends Phaser.Scene {
             if (!this.isBattleActive) return;
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
-            
+            const data = card.cardData;
             if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
 
             const computedData = getComputedCard(card.cardInstance);
