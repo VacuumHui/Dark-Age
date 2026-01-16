@@ -17,13 +17,21 @@ export const GameState = {
     
     maxHp: 50,
     currentHp: 50,
-    
-    gold: 100, // <--- СТАРТОВЫЙ КАПИТАЛ
+    gold: 100,
     
     mapData: null,
     currentFloor: 0,
     currentNode: null,
     mapGenerated: false,
     
-    level: 1
+    level: 1,
+    act: 1, // <--- ТЕКУЩИЙ АКТ
+    
+    // КОНФИГУРАЦИЯ БОССОВ (Масштабируемость!)
+    // Ключ: Номер Акта, Значение: ID врага из enemies.js
+    bosses: {
+        1: "boss_dragon",
+        2: "boss_lich",
+        3: "boss_test"
+    }
 };
