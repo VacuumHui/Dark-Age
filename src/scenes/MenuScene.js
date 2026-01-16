@@ -27,13 +27,13 @@ export class MenuScene extends Phaser.Scene {
             speedY: { min: -20, max: -50 }, // Летят вверх
             scale: { start: 0.8, end: 0 },
             alpha: { start: 0.5, end: 0 },
-            lifespan: 4000,
+            lifespan: 9000,
             quantity: 2,
             blendMode: 'ADD'
         });
 
         // 3. Заголовок
-        this.add.text(GW/2, GH * 0.3, "DARK ASCENSION", { 
+        this.add.text(GW/2, GH * 0.3, "DARK AGE", { 
             fontSize: '80px', 
             fontStyle: 'bold', 
             color: '#ff4400',
@@ -41,7 +41,7 @@ export class MenuScene extends Phaser.Scene {
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        this.add.text(GW/2, GH * 0.38, "Roguelite Deckbuilder", { 
+        this.add.text(GW/2, GH * 0.38, "______________________", { 
             fontSize: '24px', color: '#888' 
         }).setOrigin(0.5);
 
