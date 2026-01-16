@@ -1,8 +1,8 @@
 // Файл: src/managers/ActionManager.js
 
-export const ACTIONS = {
-    // --- БОЕВЫЕ ДЕЙСТВИЯ ---
+import { GameState } from '../GameState.js'; // <-- Добавили импорт
 
+export const ACTIONS = {
     damage: (scene, action, source, target) => {
         if (target && target.takeDamage) {
             let dmg = action.value;
@@ -11,6 +11,12 @@ export const ACTIONS = {
             }
             target.takeDamage(dmg);
             if (scene.effectManager) scene.effectManager.playHit(target.x, target.y);
+        }
+    },
+
+    apply_status: (scene, action, source, target) => {
+        if (scene.statusManager) {
+            scene.statusManager.applyStatus(target, action.status, action.value);
         }
     },
 
@@ -28,16 +34,12 @@ export const ACTIONS = {
         }
     },
 
-    // ИСПРАВЛЕНО: Теперь имя совпадает с базой (heal_owner)
     heal_owner: (scene, action, source, target) => {
-        // source - это тот, кто сыграл карту (Игрок)
         if (source && source.heal) {
             source.heal(action.value);
             if (scene.effectManager) scene.effectManager.playHeal(source.x, source.y);
         }
     },
-
-    // --- РЕСУРСЫ ---
 
     restore_mana: (scene, action, source, target) => {
         scene.mana += action.value;
@@ -51,32 +53,31 @@ export const ACTIONS = {
         scene.showFloatingText(source.x, source.y - 80, `Draw +${action.value}`, 0xffffff);
     },
 
-    // --- СТАТУСЫ ---
-    
-    apply_status: (scene, action, source, target) => {
-        if (scene.statusManager) {
-            scene.statusManager.applyStatus(target, action.status, action.value);
-        }
-    },
-
+    // --- ИСПРАВЛЕННОЕ УВЕЛИЧЕНИЕ ХП (КЛУБНИКА) ---
     increase_max_hp: (scene, action, source, target) => {
-        if (target) {
-            target.maxHp += action.value;
-            target.hp += action.value;
-            target.updateUI();
-            scene.showFloatingText(target.x, target.y - 60, `Max HP +${action.value}`, 0x00ff00);
+        // 1. Обновляем Глобальное состояние (чтобы сохранилось навсегда)
+        GameState.maxHp += action.value;
+        GameState.currentHp += action.value;
+
+        // 2. Если мы в бою и есть юнит игрока — обновляем его визуально
+        if (scene.player) {
+            scene.player.maxHp = GameState.maxHp;
+            scene.player.hp = GameState.currentHp;
+            scene.player.updateUI();
+            scene.showFloatingText(scene.player.x, scene.player.y - 60, `Max HP +${action.value}`, 0x00ff00);
+        } 
+        // 3. Если мы в магазине (юнита нет) — просто обновляем UI сцены
+        else {
+            scene.game.events.emit('UPDATE_UI'); // Обновить верхнюю полоску
         }
     }
 };
 
-// Функция запуска
 export function executeAction(scene, action, source, target) {
     const actionFunc = ACTIONS[action.type];
-    
     if (actionFunc) {
         actionFunc(scene, action, source, target);
     } else {
-        // ТЕПЕРЬ ИГРА СКАЖЕТ ТЕБЕ, ЕСЛИ ТЫ ОШИБСЯ В НАЗВАНИИ
-        console.error(`CRITICAL: Действие "${action.type}" не найдено в ActionManager! Проверь cards.js или enchants.js`);
+        console.warn(`ActionManager: Unknown action "${action.type}"`);
     }
 }
