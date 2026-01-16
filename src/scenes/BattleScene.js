@@ -20,6 +20,12 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
+        // --- 0. ЗАПУСК ГЛОБАЛЬНОГО UI (НОВОЕ!) ---
+        if (!this.scene.isActive('UIScene')) {
+            this.scene.launch('UIScene');
+        }
+
+        // --- 1. ТЕКСТУРЫ ---
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
@@ -27,18 +33,22 @@ export class BattleScene extends Phaser.Scene {
             graphics.generateTexture('flare', 8, 8);
         }
         
+        // --- 2. МЕНЕДЖЕРЫ ---
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
+        // --- 3. ДАННЫЕ ---
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
 
+        // --- 4. ИНТЕРФЕЙС ---
         this.createUI(GW, GH);
         this.createRelicUI(); 
 
+        // --- 5. ЮНИТЫ ---
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
@@ -46,17 +56,30 @@ export class BattleScene extends Phaser.Scene {
         this.add.existing(this.player);
 
         this.startNewBattle("slime");
-        this.relicManager.trigger('onBattleStart');
 
+        // Триггер начала боя
+        this.relicManager.trigger('onBattleStart');
+        
+        // Обновляем глобальный UI сразу при старте
+        this.updateGlobalUI();
+
+        // --- 6. СТАРТ ---
         this.drawCards(5);
         this.setupInput();
     }
 
+    // =========================================================
+    // ЛОГИКА ИГРЫ
+    // =========================================================
+
     startNewBattle(enemyKey) {
         if (this.enemy) this.enemy.destroy();
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
+        
         this.enemy = new Unit(this, GW * 0.75, GH * 0.45, enemyKey, false);
         this.add.existing(this.enemy);
+        
         this.enemy.chooseIntent();
         this.isBattleActive = true;
     }
@@ -97,6 +120,9 @@ export class BattleScene extends Phaser.Scene {
         }
         this.spendMana(computedData.cost);
         this.discardCard(card);
+        
+        // Обновляем UI после хода (вдруг мы полечились)
+        this.updateGlobalUI();
     }
 
     discardCard(card) {
@@ -111,31 +137,30 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
         // 1. Враг начинает ход
         if (this.statusManager) {
-            this.statusManager.onTurnStart(this.enemy); // Яд
+            this.statusManager.onTurnStart(this.enemy); 
         }
         
-        // СБРОС ЩИТА ВРАГА ПЕРЕД ЕГО ДЕЙСТВИЕМ
         this.enemy.resetShield();
 
-        // Проверка заморозки
         let skipEnemyTurn = false;
         if (this.statusManager) {
             skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
         }
 
-        // Действие врага (тут он может наложить новый щит)
         if (!skipEnemyTurn) {
             this.enemy.executeIntent(this.player);
         } else {
             console.log("Враг заморожен");
         }
+        
+        // Синхронизируем ХП после удара врага
+        this.updateGlobalUI();
 
         if (!this.player.alive) return;
 
@@ -150,17 +175,18 @@ export class BattleScene extends Phaser.Scene {
                 this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
+            
+            // Снова обновляем UI (вдруг сработал яд или регенерация)
+            this.updateGlobalUI();
 
             if (!this.player.alive) return;
             
-            // СБРОС ЩИТА ИГРОКА (Враг уже ударил)
             this.player.resetShield(); 
-            
-            // Враг думает
+            this.enemy.resetShield();
             this.enemy.chooseIntent();
             
             this.mana = this.maxMana; 
-            this.updateManaUI();
+            this.updateManaUI(); // Это также вызовет updateGlobalUI внутри
             
             const cardsNeeded = 5 - this.hand.length;
             if (cardsNeeded > 0) this.drawCards(cardsNeeded);
@@ -168,15 +194,27 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    // =========================================================
+    // СОБЫТИЯ
+    // =========================================================
+
     handleUnitDeath(unit) {
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
+
+        // Финальное обновление UI перед концом боя
+        this.updateGlobalUI();
+
         if (unit.isPlayer) {
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
+            
             this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
             this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+            
             const btn = this.add.rectangle(GW/2, GH/2 + 50, 200, 60, 0xffffff).setInteractive().setDepth(2001);
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
+            
             btn.on('pointerdown', () => { 
                 location.reload(); 
             });
@@ -189,18 +227,29 @@ export class BattleScene extends Phaser.Scene {
     handleVictory() {
         this.isBattleActive = false;
         this.discardHandVisual(); 
-        const GW = this.scale.width; const GH = this.scale.height;
+
+        const GW = this.scale.width;
+        const GH = this.scale.height;
+
         GameState.currentHp = this.player.hp;
         GameState.level++;
+        
+        // Начисляем золото за победу (например, 20 монет)
+        GameState.gold += 20;
+        this.updateGlobalUI();
+
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+
         const rewardKeys = this.rewardManager.getRewardOptions(3);
+
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 140;
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
             const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
+
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
                 GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
@@ -208,8 +257,28 @@ export class BattleScene extends Phaser.Scene {
             });
             card.bg.removeAllListeners('pointerup');
         });
+        
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
+    }
+
+    // =========================================================
+    // UI И ВВОД
+    // =========================================================
+
+    // --- НОВЫЙ МЕТОД СИНХРОНИЗАЦИИ ---
+    updateGlobalUI() {
+        if (this.player) {
+            GameState.currentHp = this.player.hp;
+        }
+        // Отправляем событие, которое поймает UIScene
+        this.game.events.emit('UPDATE_UI');
+    }
+
+    // В методе updateManaUI мы теперь вызываем updateGlobalUI
+    updateManaUI() { 
+        this.manaText.setText(`${this.mana}/${this.maxMana}`); 
+        this.updateGlobalUI(); 
     }
 
     createUI(GW, GH) {
@@ -218,38 +287,79 @@ export class BattleScene extends Phaser.Scene {
             if (this.zoomedCard) this.unzoomCard();
             else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView();
         });
+        
         const PADDING = 50; 
+
+        // Мана
         this.mana = 3; this.maxMana = 3;
-        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { fontSize: '32px', color: '#00ffff', fontStyle: 'bold' }).setDepth(10);
+        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
+            fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
+        }).setDepth(10);
+        
+        // Кнопка Конец Хода
         this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
         this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
+
+        // Мусорка
         this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
         trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
         this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
-        const deckBtnX = PADDING + 40; const deckBtnY = GH - 120;
+        
+        // Кнопка колоды
+        const deckBtnX = PADDING + 40; 
+        const deckBtnY = GH - 120;
         this.deckBtn = this.add.rectangle(deckBtnX, deckBtnY, 140, 40, 0x333333).setInteractive().setStrokeStyle(2, 0x888888);
         this.deckText = this.add.text(deckBtnX, deckBtnY, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.deckBtn.on('pointerdown', () => this.openDeckView());
+
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
 
     createRelicUI() {
-        const startX = 50; const startY = 40; const gap = 50;    
+        // Отрисовку реликвий в бою можно оставить или убрать, 
+        // так как теперь они будут в UIScene сверху.
+        // Я оставлю тут, но сдвину пониже, чтобы не перекрывать глобальный UI.
+        const startX = 50;
+        const startY = 80; // Сдвинули ниже (было 40), так как сверху теперь полоска UIScene
+        const gap = 50;    
+
         GameState.relics.forEach((relicId, index) => {
-            const data = RELICS_DB[relicId]; if (!data) return;
+            const data = RELICS_DB[relicId];
+            if (!data) return;
+
             const x = startX + (index * gap);
+            
             this.add.rectangle(x, startY, 40, 40, 0x222222).setStrokeStyle(2, 0x666666);
+            
             const icon = this.add.text(x, startY, data.icon, { fontSize: '26px' }).setOrigin(0.5);
+            
             icon.setInteractive();
             icon.on('pointerdown', () => {
-                const txt = this.add.text(x + 25, startY + 20, data.desc, { fontSize: '20px', fontStyle: 'bold', color: '#ffffff', backgroundColor: '#000000', padding: { x: 10, y: 10 } }).setOrigin(0, 0).setDepth(3000);
-                this.tweens.add({ targets: txt, alpha: 0, duration: 500, delay: 2500, onComplete: () => txt.destroy() });
+                const txt = this.add.text(x + 25, startY + 20, data.desc, { 
+                    fontSize: '20px', 
+                    fontStyle: 'bold', 
+                    color: '#ffffff', 
+                    backgroundColor: '#000000', 
+                    padding: { x: 10, y: 10 }
+                }).setOrigin(0, 0).setDepth(3000);
+
+                this.tweens.add({
+                    targets: txt,
+                    alpha: 0,
+                    duration: 500,
+                    delay: 2500,
+                    onComplete: () => txt.destroy()
+                });
             });
         });
     }
+
+    // =========================================================
+    // ВВОД
+    // =========================================================
 
     openDeckView() {
         const GW = this.scale.width; const GH = this.scale.height;
@@ -332,7 +442,6 @@ export class BattleScene extends Phaser.Scene {
         });
     }
     returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
-    updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); }
     updateDeckUI() { this.deckText.setText(`Deck: ${this.drawPile.length}`); this.discardText.setText(`${this.discardPile.length}`); }
     showFloatingText(x, y, message, color) {
         const txt = this.add.text(x, y, message, { fontSize: '24px', fontStyle: 'bold', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -360,8 +469,4 @@ export class BattleScene extends Phaser.Scene {
         this.zoomedCard = null; card.toggleMode(false);
         this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2', onComplete: () => {
             if (this.parentContainerRef) { this.parentContainerRef.add(card); card.x = card.savedContainerX; card.y = card.savedContainerY; this.parentContainerRef = null; }
-            if (this.deckContainer && this.deckContainer.visible) this.dimmer.setDepth(2999); else this.dimmer.setVisible(false);
-            card.setDepth(0);
-        }});
-    }
-}
+            if (this.deckContainer && this.deckContainer.visible) this.
