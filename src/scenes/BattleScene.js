@@ -11,6 +11,7 @@ import { RewardManager } from '../managers/RewardManager.js';
 import { StatusManager } from '../managers/StatusManager.js';
 import { RelicManager } from '../managers/RelicManager.js';
 import { getComputedCard } from '../managers/CardLogic.js'; 
+import { EnemyFactory } from '../managers/EnemyFactory.js'; // <-- НОВЫЙ ИМПОРТ
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -55,6 +56,11 @@ export class BattleScene extends Phaser.Scene {
         this.player.updateUI();
         this.add.existing(this.player);
 
+        // СПАВН ВРАГА (теперь с учетом уровня карты)
+        // Если при переходе передали ключ врага (например, Босса) - используем его
+        // Иначе - дефолтный слайм (для тестов)
+        // В MapScene мы передаем { enemy: '...' } в start(), здесь можно это получить через init,
+        // но пока оставим жесткую привязку или рандом для теста.
         this.startNewBattle("slime");
 
         // Триггер начала боя
@@ -75,9 +81,11 @@ export class BattleScene extends Phaser.Scene {
         const GW = this.scale.width; 
         const GH = this.scale.height;
         
-        this.enemy = new Unit(this, GW * 0.75, GH * 0.45, enemyKey, false);
-        this.add.existing(this.enemy);
+        // --- ИЗМЕНЕНИЕ: ИСПОЛЬЗУЕМ ФАБРИКУ ---
+        // Фабрика сама создаст юнита, посчитает сложность и настроит ХП
+        this.enemy = EnemyFactory.createEnemy(this, GW * 0.75, GH * 0.45, enemyKey);
         
+        this.add.existing(this.enemy);
         this.enemy.chooseIntent();
         this.isBattleActive = true;
     }
@@ -133,21 +141,18 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
     }
 
-    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО) ---
+    // --- КОНЕЦ ХОДА (Сохранена правильная логика щитов) ---
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        // 1. ХОД ВРАГА НАЧИНАЕТСЯ
-        
-        // Сначала сбрасываем ЕГО старый щит (с прошлого хода)
-        // ДО того, как он наложит новый
-        this.enemy.resetShield();
-
-        // Обрабатываем Яд на враге
+        // 1. НАЧАЛО ХОДА ВРАГА
         if (this.statusManager) {
             this.statusManager.onTurnStart(this.enemy); 
         }
+        
+        // Сбрасываем старый щит врага
+        this.enemy.resetShield();
 
         // Проверка заморозки
         let skipEnemyTurn = false;
@@ -155,7 +160,7 @@ export class BattleScene extends Phaser.Scene {
             skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
         }
 
-        // Действие врага (если он тут наложит щит, он сохранится)
+        // Действие врага
         if (!skipEnemyTurn) {
             this.enemy.executeIntent(this.player);
         } else {
@@ -166,14 +171,12 @@ export class BattleScene extends Phaser.Scene {
 
         if (!this.player.alive) return;
 
-        // 2. ПЕРЕДАЧА ХОДА ИГРОКУ (через 1 сек)
+        // 2. ПЕРЕДАЧА ХОДА ИГРОКУ
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
-            // Враг закончил свой ход (сила сгорает)
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
 
-            // Игрок начинает ход (Яд тикает, Сила сгорает)
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
@@ -184,10 +187,8 @@ export class BattleScene extends Phaser.Scene {
 
             if (!this.player.alive) return;
             
-            // СБРОС ЩИТА ИГРОКА (Так как начался твой ход, старый щит не нужен)
+            // Сбрасываем щит игрока
             this.player.resetShield(); 
-            
-            // ВАЖНО: Мы НЕ трогаем this.enemy.resetShield() здесь!
             
             this.enemy.chooseIntent();
             
@@ -220,6 +221,11 @@ export class BattleScene extends Phaser.Scene {
             this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
             
             btn.on('pointerdown', () => { 
+                GameState.deck = ["strike", "strike", "strike", "defend", "defend", "defend"];
+                GameState.relics = [];
+                GameState.currentHp = 50;
+                GameState.gold = 0;
+                GameState.mapData = null;
                 location.reload(); 
             });
         } else {
@@ -236,31 +242,41 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
 
         GameState.currentHp = this.player.hp;
-        GameState.level++;
-        GameState.gold += 20;
+        
+        // Золото за победу (тоже можно масштабировать от уровня)
+        const goldReward = 20 + (GameState.currentFloor * 5);
+        GameState.gold += goldReward;
+        
         this.updateGlobalUI();
 
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
-        this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+        
+        this.add.text(GW/2, 80, "VICTORY!", { fontSize: '40px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+        this.add.text(GW/2, 130, `Gold +${goldReward}`, { fontSize: '24px', color: '#fff' }).setOrigin(0.5).setDepth(2001);
+        this.add.text(GW/2, 180, "CHOOSE A REWARD:", { fontSize: '24px', color: '#aaa' }).setOrigin(0.5).setDepth(2001);
 
         const rewardKeys = this.rewardManager.getRewardOptions(3);
 
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 140;
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
-            const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
+            const card = new Card(this, GW/2 + xOffset, GH/2 + 50, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
 
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
                 GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
+                // При возврате на карту увеличиваем уровень
+                // (Это можно делать и здесь, и в MapScene при входе в узел, но здесь надежнее перед выходом)
+                // Но MapManager.unlockNextLayer уже сделал свое дело.
+                
                 this.scene.start('MapScene');
             });
             card.bg.removeAllListeners('pointerup');
         });
         
-        const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
+        const skipBtn = this.add.text(GW/2, GH - 80, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
     }
 
@@ -289,25 +305,21 @@ export class BattleScene extends Phaser.Scene {
         
         const PADDING = 50; 
 
-        // Мана
         this.mana = 3; this.maxMana = 3;
         this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
             fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
         }).setDepth(10);
         
-        // Кнопка Конец Хода
         this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
         this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
 
-        // Мусорка
         this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
         trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
         this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
         
-        // Кнопка колоды
         const deckBtnX = PADDING + 40; 
         const deckBtnY = GH - 120;
         this.deckBtn = this.add.rectangle(deckBtnX, deckBtnY, 140, 40, 0x333333).setInteractive().setStrokeStyle(2, 0x888888);
@@ -342,10 +354,6 @@ export class BattleScene extends Phaser.Scene {
             });
         });
     }
-
-    // =========================================================
-    // ВВОД (КОЛОДА И ЗУМ)
-    // =========================================================
 
     openDeckView() {
         const GW = this.scale.width; const GH = this.scale.height;
