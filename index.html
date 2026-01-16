@@ -2,32 +2,33 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Важно: запрещаем зум пальцами -->
+    <!-- Настройка viewport для мобилок (без зума, на весь экран) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Roguelite Deckbuilder</title>
+    <title>Roguelite</title>
     <link rel="stylesheet" href="style.css">
     
+    <!-- Подключаем только сам движок Phaser -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <script src="src/data/cards.js"></script>
-    <script src="src/data/enemies.js"></script>
+    
+    <!-- Остальные скрипты (карты, враги) подгрузятся автоматически через main.js -->
 </head>
 <body>
 
-    <!-- ЭКРАН СТАРТА -->
+    <!-- ТЕХНИЧЕСКИЙ ЭКРАН СТАРТА -->
+    <!-- Нужен только для активации полного экрана по клику -->
     <div id="start-screen">
-        <h1 style="color: #ffd700; margin-bottom: 30px;">DARK CARD BATTLE</h1>
-        <button id="start-btn">TAP TO START</button>
-        <p style="color: #666; margin-top: 20px;">(Full Screen Mode)</p>
+        <h2 style="color: #666; margin-bottom: 20px; font-family: monospace;">SYSTEM READY</h2>
+        <button id="start-btn">TAP TO ENTER FULLSCREEN</button>
     </div>
 
-    <!-- ЭКРАН "ПОВЕРНИ ТЕЛЕФОН" -->
+    <!-- ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ -->
     <div id="rotate-message">
         <div class="rotate-icon">📱 ⤵️</div>
         <h2>PLEASE ROTATE DEVICE</h2>
         <p>Landscape mode required</p>
     </div>
 
-    <!-- Игра загружается сюда -->
+    <!-- ТОЧКА ВХОДА В ИГРУ -->
     <script type="module" src="src/main.js"></script>
 
     <!-- СКРИПТ ПОЛНОГО ЭКРАНА -->
@@ -36,46 +37,46 @@
         const startBtn = document.getElementById('start-btn');
 
         startBtn.addEventListener('click', async () => {
-            // 1. Пытаемся включить полный экран
+            // 1. Попытка включить полный экран
             try {
                 if (document.documentElement.requestFullscreen) {
                     await document.documentElement.requestFullscreen();
-                } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+                } else if (document.documentElement.webkitRequestFullscreen) {
                     await document.documentElement.webkitRequestFullscreen();
                 }
             } catch (err) {
                 console.log("Full screen denied:", err);
             }
 
-            // 2. Пытаемся заблокировать ориентацию (Работает на Android)
+            // 2. Попытка заблокировать ориентацию (Android)
             try {
                 if (screen.orientation && screen.orientation.lock) {
                     await screen.orientation.lock("landscape");
                 }
             } catch (err) {
-                console.log("Orientation lock not supported (iOS usually)");
+                console.log("Orientation lock not supported");
             }
 
-            // 3. Скрываем кнопку старта
+            // 3. Скрываем HTML кнопку -> Видим игру (Phaser)
             startScreen.style.display = 'none';
         });
     </script>
-    <!-- ЛОВУШКА ОШИБОК -->
-<div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #ff5555; z-index: 99999; font-size: 14px; pointer-events: none;"></div>
 
-<script>
-    window.onerror = function(message, source, lineno, colno, error) {
-        const consoleDiv = document.getElementById('debug-console');
-        consoleDiv.innerHTML += `<p>ERROR: ${message} <br> (Line: ${lineno})</p>`;
-    };
-    
-    // Перехват ошибок загрузки модулей
-    window.addEventListener('error', (event) => {
-        const consoleDiv = document.getElementById('debug-console');
-        if (event.target.tagName === 'SCRIPT') {
-             consoleDiv.innerHTML += `<p>FAILED TO LOAD SCRIPT: ${event.target.src}</p>`;
-        }
-    }, true);
-</script>
+    <!-- ЛОВУШКА ОШИБОК (Оставляем, полезно для отладки) -->
+    <div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #ff5555; z-index: 99999; font-size: 14px; pointer-events: none;"></div>
+
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            const consoleDiv = document.getElementById('debug-console');
+            consoleDiv.innerHTML += `<p>ERROR: ${message} <br> (Line: ${lineno})</p>`;
+        };
+        
+        window.addEventListener('error', (event) => {
+            const consoleDiv = document.getElementById('debug-console');
+            if (event.target.tagName === 'SCRIPT') {
+                 consoleDiv.innerHTML += `<p>FAILED TO LOAD SCRIPT: ${event.target.src}</p>`;
+            }
+        }, true);
+    </script>
 </body>
 </html>
