@@ -1,6 +1,6 @@
 // src/main.js
 
-import { MenuScene } from './scenes/MenuScene.js';   // <-- ИМПОРТ
+import { MenuScene } from './scenes/MenuScene.js';   // <-- Убедись, что импортировал
 import { MapScene } from './scenes/MapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { RestScene } from './scenes/RestScene.js';
@@ -18,7 +18,7 @@ const config = {
     },
     backgroundColor: '#000000',
     pixelArt: true,
-    // MenuScene ПЕРВАЯ в списке!
+    // ВАЖНО: MenuScene ОБЯЗАНА БЫТЬ ПЕРВОЙ (индекс 0)
     scene: [MenuScene, MapScene, BattleScene, RestScene, EventScene, ShopScene, UIScene] 
 };
 
