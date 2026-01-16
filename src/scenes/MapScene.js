@@ -12,7 +12,6 @@ export class MapScene extends Phaser.Scene {
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
-        // Обновляем UI (чтобы показать актуальное здоровье после боя)
         this.game.events.emit('UPDATE_UI');
 
         // 2. Генерация карты, если её нет
@@ -54,8 +53,8 @@ export class MapScene extends Phaser.Scene {
 
         this.zoomedCard = null;
 
-        // Заголовок
-        this.add.text(50, 80, "MAP", { fontSize: '40px', color: '#444' }).setScrollFactor(0);
+        // Заголовок (показывает текущий Акт)
+        this.add.text(50, 80, `ACT ${GameState.act} MAP`, { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
         // --- КНОПКА КОЛОДЫ ---
         const deckBtn = this.add.rectangle(this.scale.width - 150, 130, 200, 60, 0x333333)
@@ -145,7 +144,7 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerout', () => { isDown = false; });
     }
 
-    // --- ФУНКЦИИ КОЛОДЫ ---
+    // --- КОЛОДА ---
     
     openDeckView() {
         if (!this.deckContainer) {
@@ -167,7 +166,7 @@ export class MapScene extends Phaser.Scene {
         const gapY = 160;
         const cardsPerRow = Math.floor((this.scale.width - 100) / gapX);
 
-        // Сортировка по ID карты
+        // Сортируем объекты (по ID)
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
 
         sortedDeck.forEach((cardInstance, index) => {
@@ -198,7 +197,7 @@ export class MapScene extends Phaser.Scene {
         this.unzoomCard();
     }
 
-    // --- ФУНКЦИИ ЗУМА ---
+    // --- ЗУМ ---
     zoomCard(card) {
         if (this.zoomedCard) return; 
         this.zoomedCard = card;
@@ -311,9 +310,17 @@ export class MapScene extends Phaser.Scene {
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
 
                 // --- ЛОГИКА ПЕРЕХОДОВ ---
-                if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
-                    this.scene.start('BattleScene');
-                } else if (node.type === 'rest') {
+                if (node.type === 'battle' || node.type === 'start') {
+                    // Обычный бой
+                    this.scene.start('BattleScene', { enemyKey: "slime" }); // Или рандом
+                } 
+                else if (node.type === 'boss') {
+                    // БОСС ТЕКУЩЕГО АКТА
+                    // Берем ID из конфига, если нет - ставим дефолт
+                    const bossId = GameState.bosses[GameState.act] || "boss_dragon";
+                    this.scene.start('BattleScene', { enemyKey: bossId });
+                }
+                else if (node.type === 'rest') {
                     this.scene.start('RestScene');
                 } else if (node.type === 'event') {
                     this.scene.start('EventScene');
