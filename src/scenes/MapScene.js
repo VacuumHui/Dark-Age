@@ -9,6 +9,14 @@ export class MapScene extends Phaser.Scene {
     constructor() { super({ key: 'MapScene' }); }
 
     create() {
+        // ЗАПУСК UI (Если он еще не запущен)
+        if (!this.scene.isActive('UIScene')) {
+            this.scene.launch('UIScene');
+        }
+        
+        // ОБНОВЛЕНИЕ UI (При возврате на карту обновляем ХП и Золото)
+        this.game.events.emit('UPDATE_UI');
+        
         if (!GameState.mapGenerated) {
             const manager = new MapManager();
             GameState.mapData = manager.generateMap();
