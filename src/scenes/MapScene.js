@@ -8,11 +8,10 @@ export class MapScene extends Phaser.Scene {
     constructor() { super({ key: 'MapScene' }); }
 
     create() {
-        // 1. Запуск глобального UI (если вдруг не запущен)
+        // 1. Запуск глобального UI
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
-        // Обновляем данные в UI
         this.game.events.emit('UPDATE_UI');
 
         // 2. Генерация карты
@@ -54,7 +53,7 @@ export class MapScene extends Phaser.Scene {
 
         this.add.text(50, 80, "MAP", { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
-        // --- КНОПКА КОЛОДЫ (ИСПРАВЛЕНО) ---
+        // --- КНОПКА КОЛОДЫ ---
         // Спустили ниже (Y = 130), чтобы не перекрывать UIScene
         const deckBtn = this.add.rectangle(this.scale.width - 150, 130, 200, 60, 0x333333)
             .setScrollFactor(0)
@@ -306,6 +305,7 @@ export class MapScene extends Phaser.Scene {
                 GameState.currentFloor = node.x;
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
 
+                // --- ЛОГИКА ПЕРЕХОДОВ ---
                 if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
                     this.scene.start('BattleScene');
                 } else if (node.type === 'rest') {
@@ -321,4 +321,4 @@ export class MapScene extends Phaser.Scene {
             });
         }
     }
-}
+} // <--- ВОТ ЭТА СКОБКА ОБЯЗАТЕЛЬНА
