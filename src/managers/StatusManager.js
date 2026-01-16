@@ -1,4 +1,4 @@
-// src/managers/StatusManager.js
+// Файл: src/managers/StatusManager.js
 
 export class StatusManager {
     constructor(scene) {
@@ -11,7 +11,7 @@ export class StatusManager {
     applyStatus(target, type, value) {
         if (!target.alive) return;
 
-        // Если статус уже есть, увеличиваем значение (стаки)
+        // Если статус уже есть, увеличиваем значение
         if (target.statuses[type]) {
             target.statuses[type] += value;
         } else {
@@ -43,20 +43,20 @@ export class StatusManager {
             finalDamage = Math.floor(finalDamage * 1.5);
         }
 
-        return Math.max(0, finalDamage); // Урон не может быть отрицательным
+        return Math.max(0, finalDamage);
     }
 
     /**
      * Событие: Начало хода (DoT эффекты)
      */
     onTurnStart(unit) {
-        // ЯД (Poison): Наносит урон и уменьшается на 1
+        // ЯД
         if (unit.statuses['poison'] > 0) {
             const dmg = unit.statuses['poison'];
             this.scene.showFloatingText(unit.x, unit.y - 100, "POISON!", 0x00ff00);
-            unit.takeDamage(dmg); // Урон игнорирует щит (обычно в роглайтах так)
+            unit.takeDamage(dmg);
             
-            unit.statuses['poison']--; // Уменьшаем стаки
+            unit.statuses['poison']--;
             if (unit.statuses['poison'] <= 0) delete unit.statuses['poison'];
         }
         
@@ -67,12 +67,12 @@ export class StatusManager {
      * Событие: Конец хода (Сгорание временных баффов)
      */
     onTurnEnd(unit) {
-        // СИЛА (Strength): Сгорает в конце хода (по твоей заявке)
+        // СИЛА сгорает
         if (unit.statuses['strength']) {
             delete unit.statuses['strength'];
         }
 
-        // СЛАБОСТЬ / УЯЗВИМОСТЬ: Тикают таймеры
+        // Таймеры дебаффов
         ['weak', 'vulnerable'].forEach(stat => {
             if (unit.statuses[stat] > 0) {
                 unit.statuses[stat]--;
@@ -84,14 +84,40 @@ export class StatusManager {
     }
 
     /**
-     * Событие: При получении урона (Реактивные эффекты)
+     * Событие: При получении урона
      */
     onTakeDamage(unit, amount) {
-        // ЯРОСТЬ (Rage): Если получили урон -> получаем Силу на следующий ход
+        // ЯРОСТЬ
         if (unit.statuses['rage'] > 0 && amount > 0) {
-            // Накладываем 1 силы за каждый удар
             this.applyStatus(unit, 'strength', 1); 
             this.scene.showFloatingText(unit.x, unit.y - 100, "RAGE!", 0xff0000);
         }
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Проверка на пропуск хода (Заморозка)
+     * Именно его не хватало!
+     */
+    checkTurnSkip(unit) {
+        // ЗАМОРОЗКА
+        if (unit.statuses['freeze'] > 0) {
+            const chance = 0.5; // 50% шанс
+            
+            if (Math.random() < chance) {
+                this.scene.showFloatingText(unit.x, unit.y - 100, "FROZEN! ❄️", 0x00ffff);
+                this.scene.cameras.main.shake(200, 0.01);
+                
+                // Уменьшаем счетчик
+                unit.statuses['freeze']--;
+                if (unit.statuses['freeze'] <= 0) delete unit.statuses['freeze'];
+                
+                unit.updateStatusUI();
+                return true; // ПРОПУСТИТЬ ХОД
+            } else {
+                this.scene.showFloatingText(unit.x, unit.y - 100, "ICE CRACKED!", 0xcccccc);
+            }
+        }
+        
+        return false; // НЕ ПРОПУСКАТЬ
     }
 }
