@@ -15,7 +15,7 @@ export class Card extends Phaser.GameObjects.Container {
         
         this.isZoomed = false;
         
-        const w = 100, h = 140;
+        const w = 120, h = 170;
         
         // Цвет рамки (редкость + зачарование)
         let strokeColor = 0x999999;
