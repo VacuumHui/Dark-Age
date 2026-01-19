@@ -1,8 +1,8 @@
-// src/managers/MapManager.js
+// Файл: src/managers/MapManager.js
 
 export class MapManager {
     constructor() {
-        this.floors = 12; // Сделаем карту подлиннее
+        this.floors = 12; 
         this.nodeTypes = [
             { type: 'battle', weight: 55 },
             { type: 'event', weight: 20 },
@@ -14,21 +14,14 @@ export class MapManager {
     generateMap() {
         const map = [];
 
-        // 1. ГЕНЕРАЦИЯ ЭТАЖЕЙ
+        // 1. Генерация этажей
         for (let x = 0; x < this.floors; x++) {
             const layer = [];
-            
-            // ПРАВИЛО:
-            // 0 этаж = 1 узел (Старт)
-            // Последний этаж = 1 узел (Босс)
-            // Середина = 3-5 узлов (Чтобы было где разгуляться)
             let count;
             if (x === 0 || x === this.floors - 1) count = 1;
-            else if (x === this.floors - 2) count = 2; // Перед боссом сужаем
-            else count = Math.floor(Math.random() * 3) + 3; // 3, 4 или 5 комнат
+            else if (x === this.floors - 2) count = 2; 
+            else count = Math.floor(Math.random() * 3) + 3; 
             
-            // Центрируем узлы по вертикали (y), чтобы карта была красивой елочкой
-            // y будет не 0,1,2, а, например, 1,2,3, если ряд широкий
             const offsetY = (5 - count) / 2; 
 
             for (let i = 0; i < count; i++) {
@@ -41,7 +34,7 @@ export class MapManager {
                 layer.push({
                     id: `${x}-${i}`,
                     x: x,
-                    y: offsetY + i, // Сдвигаем Y для красоты
+                    y: offsetY + i, 
                     type: type,
                     status: (x === 0) ? 'available' : 'locked',
                     visible: (x === 0),
@@ -51,22 +44,17 @@ export class MapManager {
             map.push(layer);
         }
 
-        // 2. СОЗДАНИЕ ВЕТВЛЕНИЙ (ПАУТИНА)
+        // 2. Связи
         for (let x = 0; x < this.floors - 1; x++) {
             const currentLayer = map[x];
             const nextLayer = map[x + 1];
 
-            // Для каждого узла текущего слоя
             currentLayer.forEach(node => {
-                // Ищем узлы в следующем слое, которые БЛИЗКО по высоте (y)
                 const neighbors = nextLayer.filter(next => Math.abs(next.y - node.y) <= 1.5);
                 
-                // Обязательно соединяем с одним случайным соседом
                 if (neighbors.length > 0) {
                     const primary = Phaser.Utils.Array.GetRandom(neighbors);
                     node.connections.push(primary.id);
-
-                    // С вероятностью 70% соединяем со ВТОРЫМ соседом (Ветвление!)
                     neighbors.forEach(n => {
                         if (n.id !== primary.id && Math.random() < 0.7) {
                             node.connections.push(n.id);
@@ -75,12 +63,9 @@ export class MapManager {
                 }
             });
 
-            // ПРОВЕРКА СИРОТ (Orphans)
-            // Если у узла в следующем слое нет входящих связей, соединяем его с ближайшим предком
             nextLayer.forEach(nextNode => {
                 const hasParent = currentLayer.some(n => n.connections.includes(nextNode.id));
                 if (!hasParent) {
-                    // Ищем ближайшего по Y из предыдущего слоя
                     let closestParent = currentLayer[0];
                     let minDiff = 999;
                     currentLayer.forEach(parent => {
@@ -108,7 +93,9 @@ export class MapManager {
         return 'battle';
     }
 
+    // --- ВОТ ЗДЕСЬ ИСПРАВЛЕНИЕ ---
     static unlockNextLayer(mapData, currentNodeId) {
+        // 1. Находим текущий узел
         let currentNode = null;
         for (let layer of mapData) {
             const found = layer.find(n => n.id === currentNodeId);
@@ -116,8 +103,20 @@ export class MapManager {
         }
 
         if (!currentNode) return;
+
+        // 2. Помечаем его как пройденный
         currentNode.status = 'completed';
 
+        // 3. БЛОКИРУЕМ СОСЕДЕЙ (Те, что были на этом же этаже, но мы их не выбрали)
+        const currentLayer = mapData[currentNode.x];
+        currentLayer.forEach(node => {
+            if (node.id !== currentNodeId) {
+                node.status = 'locked'; // Запрещаем вход
+                // node.visible = true; // Можно оставить видимым, чтобы игрок видел, что упустил
+            }
+        });
+
+        // 4. Открываем следующий этаж (только связанные узлы)
         const nextLayerIndex = currentNode.x + 1;
         if (nextLayerIndex < mapData.length) {
             const nextLayer = mapData[nextLayerIndex];
@@ -126,6 +125,7 @@ export class MapManager {
                     nextNode.visible = true;
                     nextNode.status = 'available';
                 } else {
+                    // Те узлы на следующем этаже, к которым НЕ ведет путь, остаются закрытыми
                     if (nextNode.status !== 'completed') nextNode.status = 'locked';
                 }
             });
