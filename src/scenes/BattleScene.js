@@ -4,7 +4,7 @@ import { Unit } from '../prefabs/Unit.js';
 import { Card } from '../prefabs/Card.js';
 import { CARDS_DB } from '../data/cards.js';
 import { RELICS_DB } from '../data/relics.js';
-import { ENEMIES_DB } from '../data/enemies.js'; // <-- Добавили импорт базы врагов (для проверки tier)
+import { ENEMIES_DB } from '../data/enemies.js';
 import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
 import { GameState } from '../GameState.js';
@@ -17,9 +17,7 @@ import { EnemyFactory } from '../managers/EnemyFactory.js';
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
 
-    // --- ПРИЕМ ПАРАМЕТРОВ ОТ КАРТЫ ---
     init(data) {
-        // Если передали ключ врага, используем его. Если нет - слайм (фолбек)
         this.enemyKey = data.enemyKey || "slime";
     }
 
@@ -28,7 +26,9 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        if (!this.scene.isActive('UIScene')) { this.scene.launch('UIScene'); }
+        if (!this.scene.isActive('UIScene')) {
+            this.scene.launch('UIScene');
+        }
 
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -55,7 +55,6 @@ export class BattleScene extends Phaser.Scene {
         this.player.updateUI();
         this.add.existing(this.player);
 
-        // СПАВН ВРАГА (по ключу из init)
         this.startNewBattle(this.enemyKey);
 
         this.relicManager.trigger('onBattleStart');
@@ -67,30 +66,31 @@ export class BattleScene extends Phaser.Scene {
 
     startNewBattle(enemyKey) {
         if (this.enemy) this.enemy.destroy();
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
         
         this.enemy = EnemyFactory.createEnemy(this, GW * 0.75, GH * 0.45, enemyKey);
-        this.add.existing(this.enemy);
         
+        this.add.existing(this.enemy);
         this.enemy.chooseIntent();
         this.isBattleActive = true;
     }
 
-    // ... (drawCards, playCard, discardCard, endTurn, handleUnitDeath - БЕЗ ИЗМЕНЕНИЙ) ...
-    // Я их сократил для краткости, вставь их из прошлого файла или скопируй ниже ПОЛНУЮ версию.
-    
-    // --- ПОЛНЫЕ МЕТОДЫ (ЧТОБЫ НЕ БЫЛО ОШИБОК) ---
     drawCards(amount) {
         const GW = this.scale.width;
         for (let i = 0; i < amount; i++) {
             if (this.hand.length >= 6) break;
+
             if (this.drawPile.length === 0) {
                 if (this.discardPile.length > 0) {
                     this.drawPile = Phaser.Utils.Array.Shuffle([...this.discardPile]);
                     this.discardPile = [];
                     this.showFloatingText(100, 500, "Reshuffle!", 0xaaaaaa);
-                } else { break; }
+                } else {
+                    break;
+                }
             }
+
             const cardInstance = this.drawPile.pop();
             const card = new Card(this, GW/2, this.scale.height + 200, cardInstance);
             this.add.existing(card);
@@ -102,6 +102,7 @@ export class BattleScene extends Phaser.Scene {
 
     playCard(card, target) {
         const computedData = getComputedCard(card.cardInstance);
+        
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
@@ -117,7 +118,12 @@ export class BattleScene extends Phaser.Scene {
     discardCard(card) {
         this.discardPile.push(card.cardInstance);
         this.hand = this.hand.filter(c => c !== card);
-        this.tweens.add({ targets: card, x: this.trashZone.x, y: this.trashZone.y, alpha: 0, scale: 0.1, duration: 300, onComplete: () => { card.destroy(); this.rearrangeHand(); } });
+        this.tweens.add({ 
+            targets: card, 
+            x: this.trashZone.x, y: this.trashZone.y, 
+            alpha: 0, scale: 0.1, duration: 300, 
+            onComplete: () => { card.destroy(); this.rearrangeHand(); } 
+        });
         this.updateDeckUI();
     }
 
@@ -125,34 +131,48 @@ export class BattleScene extends Phaser.Scene {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        if (this.statusManager) this.statusManager.onTurnStart(this.enemy); 
+        // 1. Начало хода Врага
+        if (this.statusManager) {
+            this.statusManager.onTurnStart(this.enemy); 
+        }
+        
         this.enemy.resetShield();
 
         let skipEnemyTurn = false;
-        if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        if (this.statusManager) {
+            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        }
 
-        if (!skipEnemyTurn) this.enemy.executeIntent(this.player);
-        else console.log("Враг заморожен");
+        if (!skipEnemyTurn) {
+            this.enemy.executeIntent(this.player);
+        } else {
+            console.log("Враг заморожен");
+        }
         
         this.updateGlobalUI();
+
         if (!this.player.alive) return;
 
+        // 2. Передача хода Игроку
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
+
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
+            
             this.updateGlobalUI();
 
             if (!this.player.alive) return;
             
             this.player.resetShield(); 
-            this.enemy.resetShield();
+            
             this.enemy.chooseIntent();
+            
             this.mana = this.maxMana; 
             this.updateManaUI();
             
@@ -163,16 +183,20 @@ export class BattleScene extends Phaser.Scene {
     }
 
     handleUnitDeath(unit) {
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
         this.updateGlobalUI();
 
         if (unit.isPlayer) {
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
+            
             this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
-            this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-            const btn = this.add.rectangle(GW/2, GH/2 + 50, 200, 60, 0xffffff).setInteractive().setDepth(2001);
-            this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
+            this.add.text(GW/2, GH/2 - 60, "YOU DIED", { fontSize: '80px', color: '#ff0000', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(2001);
+            
+            const btn = this.add.rectangle(GW/2, GH/2 + 60, 300, 70, 0xffffff).setInteractive().setDepth(2001);
+            this.add.text(GW/2, GH/2 + 60, "RETURN TO MENU", { fontSize: '28px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+            
             btn.on('pointerdown', () => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
@@ -195,19 +219,11 @@ export class BattleScene extends Phaser.Scene {
         GameState.gold += 20;
         this.updateGlobalUI();
 
-        // --- ПРОВЕРКА НА БОССА ---
-        // Получаем данные текущего врага из базы по его ключу
-        // Проблема: this.enemyKey мы знаем, но вдруг это был рандомный спавн?
-        // Лучше проверить данные самого объекта enemy, если мы их сохранили, 
-        // но проще посмотреть в базу ENEMIES_DB по this.enemyKey
-        
-        const enemyData = ENEMIES_DB[this.enemyKey]; // Мы сохранили этот ключ в init()
-        
+        const enemyData = ENEMIES_DB[this.enemyKey];
         if (enemyData && enemyData.tier === 'boss') {
             this.showActClearScreen(GW, GH);
             return;
         }
-        // -------------------------
 
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
@@ -217,7 +233,7 @@ export class BattleScene extends Phaser.Scene {
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 200;
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
-            const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
+            const card = new Card(this, GW/2 + xOffset, GH/2 + 50, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
 
@@ -233,7 +249,6 @@ export class BattleScene extends Phaser.Scene {
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
     }
 
-    // --- НОВЫЙ МЕТОД: ПОБЕДА НАД БОССОМ ---
     showActClearScreen(GW, GH) {
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x110000, 0.95).setDepth(3000).setInteractive();
         
@@ -246,65 +261,84 @@ export class BattleScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(3001).setInteractive();
 
         nextBtn.on('pointerdown', () => {
-            // Переход в следующий Акт
             GameState.act++;
-            GameState.level = 1; // Сбрасываем уровень врагов (или оставляем, если сквозной)
-            GameState.mapData = null; // Сброс карты для генерации новой
+            GameState.level = 1; 
+            GameState.mapData = null; 
             GameState.currentFloor = 0;
-            
-            // Лечим героя полностью (награда за акт)
             GameState.currentHp = GameState.maxHp;
             
             this.scene.start('MapScene');
         });
     }
 
-    // =========================================================
-    // UI И ВВОД (ОСТАЛОСЬ БЕЗ ИЗМЕНЕНИЙ)
-    // =========================================================
-
     updateGlobalUI() {
-        if (this.player) GameState.currentHp = this.player.hp;
+        if (this.player) {
+            GameState.currentHp = this.player.hp;
+        }
         this.game.events.emit('UPDATE_UI');
     }
-    updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); this.updateGlobalUI(); }
+
+    updateManaUI() { 
+        this.manaText.setText(`${this.mana}/${this.maxMana}`); 
+        this.updateGlobalUI(); 
+    }
+
     createUI(GW, GH) {
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => {
             if (this.zoomedCard) this.unzoomCard();
             else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView();
         });
+        
         const PADDING = 50; 
+
         this.mana = 3; this.maxMana = 3;
-        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { fontSize: '32px', color: '#00ffff', fontStyle: 'bold' }).setDepth(10);
+        this.manaText = this.add.text(PADDING, GH - 60, `Mana: ${this.mana}/${this.maxMana}`, { 
+            fontSize: '32px', color: '#00ffff', fontStyle: 'bold' 
+        }).setDepth(10);
+        
         this.endTurnBtn = this.add.rectangle(GW - 120, GH - 160, 160, 60, 0xd04040).setInteractive().setDepth(10).setStrokeStyle(2, 0xffffff);
         this.add.text(GW - 120, GH - 160, "END TURN", { fontSize: '22px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(10);
         this.endTurnBtn.on('pointerdown', () => this.endTurn());
+
         this.trashZone = this.add.zone(GW - 80, GH - 60, 110, 110).setRectangleDropZone(110, 110);
         this.trashZone.name = "discard_zone";
         const trashG = this.add.graphics().lineStyle(2, 0x666666);
         trashG.strokeRect(this.trashZone.x - 55, this.trashZone.y - 55, 110, 110);
         this.add.text(this.trashZone.x, this.trashZone.y, "TRASH", { fontSize: '14px', color: '#666' }).setOrigin(0.5);
-        const deckBtnX = PADDING + 40; const deckBtnY = GH - 120;
+        
+        const deckBtnX = PADDING + 40; 
+        const deckBtnY = GH - 120;
         this.deckBtn = this.add.rectangle(deckBtnX, deckBtnY, 140, 40, 0x333333).setInteractive().setStrokeStyle(2, 0x888888);
         this.deckText = this.add.text(deckBtnX, deckBtnY, `Deck: ${this.drawPile.length}`, { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.deckBtn.on('pointerdown', () => this.openDeckView());
+
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
+
     createRelicUI() {
-        const startX = 50; const startY = 80; const gap = 50;    
+        const startX = 50;
+        const startY = 80; 
+        const gap = 50;    
+
         GameState.relics.forEach((relicId, index) => {
-            const data = RELICS_DB[relicId]; if (!data) return;
+            const data = RELICS_DB[relicId];
+            if (!data) return;
+
             const x = startX + (index * gap);
             this.add.rectangle(x, startY, 40, 40, 0x222222).setStrokeStyle(2, 0x666666);
             const icon = this.add.text(x, startY, data.icon, { fontSize: '26px' }).setOrigin(0.5);
             icon.setInteractive();
             icon.on('pointerdown', () => {
-                const txt = this.add.text(x + 25, startY + 20, data.desc, { fontSize: '20px', fontStyle: 'bold', color: '#ffffff', backgroundColor: '#000000', padding: { x: 10, y: 10 } }).setOrigin(0, 0).setDepth(3000);
+                const txt = this.add.text(x + 25, startY + 20, data.desc, { 
+                    fontSize: '20px', fontStyle: 'bold', color: '#ffffff', backgroundColor: '#000000', padding: { x: 10, y: 10 } 
+                }).setOrigin(0, 0).setDepth(3000);
                 this.tweens.add({ targets: txt, alpha: 0, duration: 500, delay: 2500, onComplete: () => txt.destroy() });
             });
         });
     }
+
+    // --- ОБНОВЛЕННЫЙ DECK VIEW (ОТСТУПЫ) ---
     openDeckView() {
         const GW = this.scale.width; const GH = this.scale.height;
         if (!this.deckContainer) { this.deckContainer = this.add.container(0, 0).setDepth(3000).setScrollFactor(0); }
@@ -312,8 +346,15 @@ export class BattleScene extends Phaser.Scene {
         this.dimmer.setDepth(2999).setVisible(true);
         const title = this.add.text(GW/2, 50, `FULL DECK (${GameState.deck.length})`, { fontSize: '40px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
         this.deckContainer.add(title);
-        const startX = 150; const startY = 150; const gapX = 120; const gapY = 160;
+        
+        // --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
+        const startX = 150; 
+        const startY = 250; // Было 150. Спустили ниже, чтобы не наезжало на UI
+        const gapX = 120; 
+        const gapY = 230;   // Было 160. Больше отступ, чтобы карты не перекрывали друг друга
         const cardsPerRow = Math.floor((GW - 200) / gapX);
+        // -----------------------
+
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
         sortedDeck.forEach((cardInstance, index) => {
             const col = index % cardsPerRow; const row = Math.floor(index / cardsPerRow);
@@ -326,7 +367,9 @@ export class BattleScene extends Phaser.Scene {
         closeBtn.on('pointerdown', () => this.closeDeckView());
         this.deckContainer.add(closeBtn);
     }
+
     closeDeckView() { if (this.deckContainer) this.deckContainer.setVisible(false); this.dimmer.setVisible(false); this.unzoomCard(); }
+
     setupInput() {
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.isBattleActive) return;
@@ -349,7 +392,9 @@ export class BattleScene extends Phaser.Scene {
             if (this.zoomedCard) return;
             const data = card.cardData;
             if (dropZone.name === "discard_zone") { this.discardCard(card); return; }
+
             const computedData = getComputedCard(card.cardInstance);
+
             let validTarget = null;
             if (dropZone.name === "enemy_target" && this.enemy.alive) {
                 if (computedData.target === 'enemy' || computedData.target === 'any') validTarget = this.enemy;
@@ -359,6 +404,7 @@ export class BattleScene extends Phaser.Scene {
                 if (computedData.target === 'self' || computedData.target === 'any') validTarget = this.player;
                 else this.showFloatingText(card.x, card.y, "Только на врага!", 0xffaaaa);
             }
+
             if (validTarget) {
                 if (this.mana < computedData.cost) {
                     this.showFloatingText(card.x, card.y, "No Mana!", 0x00ffff);
@@ -368,35 +414,16 @@ export class BattleScene extends Phaser.Scene {
             } else { this.returnCardToHand(card); }
         });
     }
+
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     discardHandVisual() { this.hand.forEach(card => card.destroy()); this.hand = []; }
     rearrangeHand() {
-        const GW = this.scale.width; 
-        const GH = this.scale.height;
-        
-        // --- НАСТРОЙКИ ПОЗИЦИИ ---
-        const cardW = 150; // Шаг между картами (ширина карты 140 + 10px зазор)
-        
-        const totalW = this.hand.length * cardW;
+        const GW = this.scale.width; const GH = this.scale.height;
+        const cardW = 150; const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
-        
         this.hand.forEach((card, index) => {
-            card.baseX = startX + (index * cardW); 
-            
-            // Опускаем карты чуть ниже (высота 200, половина = 100)
-            // GH - 110 ставит их так, что они немного торчат снизу, это красиво
-            card.baseY = GH - 110; 
-
-            if (card !== this.zoomedCard) { 
-                this.tweens.add({ 
-                    targets: card, 
-                    x: card.baseX, 
-                    y: card.baseY, 
-                    // Легкий поворот веером (можно убрать, если не нравится)
-                    angle: (index - (this.hand.length/2)) * 2, 
-                    duration: 300 
-                }); 
-            }
+            card.baseX = startX + (index * cardW); card.baseY = GH - 110;
+            if (card !== this.zoomedCard) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 2, duration: 300 }); }
         });
     }
     returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
