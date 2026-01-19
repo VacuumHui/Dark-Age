@@ -430,9 +430,27 @@ export class BattleScene extends Phaser.Scene {
     updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); this.updateGlobalUI(); }
     updateDeckUI() { this.deckText.setText(`Deck: ${this.drawPile.length}`); this.discardText.setText(`${this.discardPile.length}`); }
     showFloatingText(x, y, message, color) {
-        const txt = this.add.text(x, y, message, { fontSize: '24px', fontStyle: 'bold', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+        // Добавляем случайный сдвиг по X (-20..+20), чтобы цифры не накладывались
+        const randomX = x + (Math.random() * 40 - 20);
+        
+        const txt = this.add.text(randomX, y, message, { 
+            fontSize: '28px', // Чуть крупнее
+            fontStyle: 'bold', 
+            color: '#fff', 
+            stroke: '#000', 
+            strokeThickness: 4 
+        }).setOrigin(0.5).setDepth(1000); // Поверх всего
+
         txt.setTint(color);
-        this.tweens.add({ targets: txt, y: y - 80, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
+
+        this.tweens.add({ 
+            targets: txt, 
+            y: y - 100, // Летит выше
+            alpha: 0, 
+            duration: 1500, // Дольше висит
+            ease: 'Power2',
+            onComplete: () => txt.destroy() 
+        });
     }
     zoomCard(card) {
         if (this.zoomedCard) return; this.zoomedCard = card;
