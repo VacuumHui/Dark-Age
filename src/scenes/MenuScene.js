@@ -1,6 +1,7 @@
 // Файл: src/scenes/MenuScene.js
 
-import { GameState } from '../GameState.js';
+// ВАЖНО: Импортируем createCardInstance, чтобы карты создавались правильно (с ID и зачарованиями)
+import { GameState, createCardInstance } from '../GameState.js';
 
 export class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
@@ -12,8 +13,7 @@ export class MenuScene extends Phaser.Scene {
         // 1. Фон
         this.add.rectangle(0, 0, GW, GH, 0x110f0a).setOrigin(0);
 
-        // 2. Частицы на фоне (атмосфера)
-        // Генерируем текстуру, если её нет (на случай, если Меню - первая сцена)
+        // 2. Атмосфера (Частицы)
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffaa00, 1);
@@ -24,10 +24,10 @@ export class MenuScene extends Phaser.Scene {
         const particles = this.add.particles(0, 0, 'flare', {
             x: { min: 0, max: GW },
             y: GH + 50,
-            speedY: { min: -20, max: -50 }, // Летят вверх
+            speedY: { min: -20, max: -50 },
             scale: { start: 0.8, end: 0 },
             alpha: { start: 0.5, end: 0 },
-            lifespan: 9000,
+            lifespan: 4000,
             quantity: 2,
             blendMode: 'ADD'
         });
@@ -41,7 +41,7 @@ export class MenuScene extends Phaser.Scene {
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        this.add.text(GW/2, GH * 0.38, "______________________", { 
+        this.add.text(GW/2, GH * 0.38, "-----------------", { 
             fontSize: '24px', color: '#888' 
         }).setOrigin(0.5);
 
@@ -51,9 +51,6 @@ export class MenuScene extends Phaser.Scene {
         startBtn.on('pointerdown', () => {
             this.startNewGame();
         });
-
-        // 5. Кнопка CONTINUE (Пока неактивна, если нет сохранений, но на будущее)
-        // const continueBtn = this.createButton(GW/2, GH * 0.75, "CONTINUE", 0x444444);
     }
 
     createButton(x, y, text, color) {
@@ -64,12 +61,11 @@ export class MenuScene extends Phaser.Scene {
             .setInteractive();
             
         const label = this.add.text(0, 0, text, { 
-            fontSize: '32px', fontStyle: 'bold' 
+            fontSize: '32px', fontStyle: 'bold', fontFamily: 'monospace'
         }).setOrigin(0.5);
 
         container.add([bg, label]);
 
-        // Анимация нажатия
         bg.on('pointerover', () => container.setScale(1.05));
         bg.on('pointerout', () => container.setScale(1));
         bg.on('pointerdown', () => {
@@ -80,28 +76,33 @@ export class MenuScene extends Phaser.Scene {
     }
 
     startNewGame() {
-        // СБРОС ВСЕГО СОСТОЯНИЯ
+        // --- СБРОС ВСЕГО СОСТОЯНИЯ ---
+        
+        // 1. Создаем колоду ПРАВИЛЬНО (через функцию, чтобы это были объекты, а не строки)
         GameState.deck = [
-            this.createCard("strike"), this.createCard("strike"), this.createCard("strike"),
-            this.createCard("defend"), this.createCard("defend"), this.createCard("defend")
+            createCardInstance("strike"), 
+            createCardInstance("strike"), 
+            createCardInstance("strike"),
+            createCardInstance("defend"), 
+            createCardInstance("defend"), 
+            createCardInstance("defend")
         ];
+        
+        // 2. Сбрасываем ресурсы
         GameState.relics = [];
         GameState.maxHp = 50;
         GameState.currentHp = 50;
         GameState.gold = 100;
-        GameState.level = 1;
         
-        // Сброс карты
+        // 3. Сбрасываем прогресс карты
+        GameState.level = 1;
+        GameState.act = 1;
         GameState.mapData = null;
         GameState.mapGenerated = false;
         GameState.currentFloor = 0;
+        GameState.currentNode = null;
 
-        // Переход на Карту (а не в бой сразу!)
+        // 4. Переход на Карту
         this.scene.start('MapScene');
-    }
-
-    // Вспомогательная функция для создания объекта карты (как в GameState.js)
-    createCard(id) {
-        return { id: id, uid: Date.now() + Math.random(), enchants: [] };
     }
 }
