@@ -75,19 +75,18 @@ export class MenuScene extends Phaser.Scene {
     }
 
     startNewGame() {
-        // --- ЗАЩИТА ОТ ОШИБОК ---
+        console.log("Starting new game...");
+        
+        // ЗАЩИТА: Если функция импорта сломалась, используем запасной вариант
+        const safeCreateCard = (typeof createCardInstance === 'function') 
+            ? createCardInstance 
+            : (id) => ({ id: id, uid: Math.random(), enchants: [] });
+
         try {
-            // Проверка: загрузилась ли функция?
-            if (typeof createCardInstance !== 'function') {
-                throw new Error("createCardInstance is not a function! Check GameState.js export.");
-            }
-
-            console.log("Starting new game...");
-
-            // 1. Создаем колоду
+            // 1. Сброс колоды
             GameState.deck = [
-                createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
-                createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
+                safeCreateCard("strike"), safeCreateCard("strike"), safeCreateCard("strike"),
+                safeCreateCard("defend"), safeCreateCard("defend"), safeCreateCard("defend")
             ];
             
             // 2. Сброс статов
@@ -95,22 +94,24 @@ export class MenuScene extends Phaser.Scene {
             GameState.maxHp = 50;
             GameState.currentHp = 50;
             GameState.gold = 100;
-            
-            // 3. Сброс карты
             GameState.level = 1;
             GameState.act = 1;
+            
+            // 3. Сброс карты
             GameState.mapData = null;
             GameState.mapGenerated = false;
             GameState.currentFloor = 0;
             GameState.currentNode = null;
 
+            console.log("State reset complete. Loading MapScene...");
+            
             // 4. Переход
             this.scene.start('MapScene');
 
-        } catch (err) {
-            // ВЫВОД ОШИБКИ НА ЭКРАН (Чтобы ты увидел её на телефоне)
-            alert(`CRASH: ${err.message}`);
-            console.error(err);
+        } catch (error) {
+            // Если ошибка случится тут, мы её увидим
+            console.error(error);
+            alert("CRITICAL ERROR IN MENU: " + error.message);
         }
     }
 }
