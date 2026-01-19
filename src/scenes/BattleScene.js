@@ -371,12 +371,32 @@ export class BattleScene extends Phaser.Scene {
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     discardHandVisual() { this.hand.forEach(card => card.destroy()); this.hand = []; }
     rearrangeHand() {
-        const GW = this.scale.width; const GH = this.scale.height;
-        const cardW = 90; const totalW = this.hand.length * cardW;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
+        
+        // --- НАСТРОЙКИ ПОЗИЦИИ ---
+        const cardW = 150; // Шаг между картами (ширина карты 140 + 10px зазор)
+        
+        const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
+        
         this.hand.forEach((card, index) => {
-            card.baseX = startX + (index * cardW); card.baseY = GH - 130;
-            if (card !== this.zoomedCard) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 3, duration: 300 }); }
+            card.baseX = startX + (index * cardW); 
+            
+            // Опускаем карты чуть ниже (высота 200, половина = 100)
+            // GH - 110 ставит их так, что они немного торчат снизу, это красиво
+            card.baseY = GH - 110; 
+
+            if (card !== this.zoomedCard) { 
+                this.tweens.add({ 
+                    targets: card, 
+                    x: card.baseX, 
+                    y: card.baseY, 
+                    // Легкий поворот веером (можно убрать, если не нравится)
+                    angle: (index - (this.hand.length/2)) * 2, 
+                    duration: 300 
+                }); 
+            }
         });
     }
     returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
