@@ -62,21 +62,56 @@
         });
     </script>
 
-    <!-- ЛОВУШКА ОШИБОК (Оставляем, полезно для отладки) -->
-    <div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #ff5555; z-index: 99999; font-size: 14px; pointer-events: none;"></div>
+    
+<!-- ЛОВУШКА ОШИБОК 2.0 -->
+    <div id="debug-console" style="
+        display: none;
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 50%; 
+        background: rgba(0,0,0,0.9); 
+        color: #ff5555; 
+        z-index: 99999; 
+        font-family: monospace; 
+        font-size: 12px; 
+        padding: 10px; 
+        overflow: scroll; 
+        word-wrap: break-word;
+        pointer-events: auto;">
+        <button onclick="this.parentNode.style.display='none'" style="float: right; font-size: 20px;">❌</button>
+        <h3>DEBUG CONSOLE</h3>
+    </div>
 
     <script>
-        window.onerror = function(message, source, lineno, colno, error) {
+        function logError(title, detail) {
             const consoleDiv = document.getElementById('debug-console');
-            consoleDiv.innerHTML += `<p>ERROR: ${message} <br> (Line: ${lineno})</p>`;
+            consoleDiv.style.display = 'block'; // Показываем консоль при ошибке
+            consoleDiv.innerHTML += `<div style="border-bottom: 1px solid #555; margin-bottom: 10px;">
+                <strong>${title}</strong><br>
+                ${detail}
+            </div>`;
+        }
+
+        // 1. Обычные ошибки JS
+        window.onerror = function(message, source, lineno, colno, error) {
+            let stack = error ? error.stack : 'No stack trace';
+            logError("JS ERROR", `${message}<br>File: ${source}:${lineno}<br><pre>${stack}</pre>`);
+            return false;
         };
         
+        // 2. Ошибки загрузки файлов (404)
         window.addEventListener('error', (event) => {
-            const consoleDiv = document.getElementById('debug-console');
-            if (event.target.tagName === 'SCRIPT') {
-                 consoleDiv.innerHTML += `<p>FAILED TO LOAD SCRIPT: ${event.target.src}</p>`;
+            if (event.target.tagName === 'SCRIPT' || event.target.tagName === 'IMG') {
+                logError("LOADING ERROR", `Failed to load: ${event.target.src}`);
             }
         }, true);
+
+        // 3. Асинхронные ошибки (Promise Rejection) - ОЧЕНЬ ВАЖНО для Phaser
+        window.addEventListener('unhandledrejection', (event) => {
+            logError("PROMISE REJECTION", `<pre>${event.reason ? event.reason.stack : event.reason}</pre>`);
+        });
     </script>
 </body>
 </html>
