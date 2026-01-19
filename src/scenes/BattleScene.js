@@ -215,7 +215,7 @@ export class BattleScene extends Phaser.Scene {
         const rewardKeys = this.rewardManager.getRewardOptions(3);
 
         rewardKeys.forEach((cardKey, index) => {
-            const xOffset = (index - 1) * 140;
+            const xOffset = (index - 1) * 200;
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
             const card = new Card(this, GW/2 + xOffset, GH/2, tempInstance);
             card.setDepth(2002);
