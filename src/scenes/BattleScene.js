@@ -18,7 +18,13 @@ export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
 
     init(data) {
+        // Защита: если data не пришла (undefined), создаем пустой объект
+        data = data || {};
+        
+        // Если ключа нет, ставим слайма по умолчанию
         this.enemyKey = data.enemyKey || "slime";
+        
+        console.log("BattleScene init with enemy:", this.enemyKey);
     }
 
     create() {
