@@ -15,11 +15,10 @@ export class Card extends Phaser.GameObjects.Container {
         
         this.isZoomed = false;
         
-        // --- 1. РАЗМЕР (СРЕДНИЙ) ---
+        // --- РАЗМЕР КАРТЫ (140x200) ---
         const w = 140; 
         const h = 200;
         
-        // Цвет рамки
         let strokeColor = 0x999999;
         if (baseData.rarity === 'rare') strokeColor = 0x0088ff;
         if (baseData.rarity === 'legendary') strokeColor = 0xffaa00;
@@ -27,34 +26,35 @@ export class Card extends Phaser.GameObjects.Container {
             strokeColor = 0xff00ff;
         }
 
-        // --- 2. ЭЛЕМЕНТЫ ---
-
         // Фон
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
         // Арт (Картинка)
         this.art = scene.add.rectangle(0, -35, 120, 80, baseData.color);
         
-        // Заголовок (Сверху)
+        // Заголовок
         this.title = scene.add.text(0, -90, this.cardData.name, { 
             fontSize: '16px', 
             fontStyle: 'bold',
             align: 'center',
-            color: '#ffffff'
+            color: '#ffffff',
+            stroke: '#000',
+            strokeThickness: 2
         }).setOrigin(0.5);
         
         // Описание
         let descText = this.cardData.generatedDesc || this.cardData.desc;
         
+        // --- ТЕКСТ ОПИСАНИЯ (УВЕЛИЧЕН) ---
         this.shortDesc = scene.add.text(0, 50, descText, { 
-            fontSize: '13px', 
-            color: '#ccc', 
+            fontSize: '15px', // Было 13px
+            color: '#e0e0e0', // Чуть светлее для контраста
             align: 'center', 
+            fontStyle: 'bold', // Добавил жирность для читаемости
             wordWrap: { width: 130 } 
         }).setOrigin(0.5);
         
-        // Мана (Левый верхний угол)
-        // Смещение: -60 по X, -90 по Y
+        // Мана
         this.costCircle = scene.add.circle(-60, -90, 16, 0x00ffff);
         
         let costColor = '#000';
@@ -66,9 +66,12 @@ export class Card extends Phaser.GameObjects.Container {
             fontStyle: 'bold' 
         }).setOrigin(0.5);
         
-        // Полное описание (для зума)
+        // Полное описание (ДЛЯ ЗУМА - СТАЛО ОГРОМНЫМ)
         this.fullDesc = scene.add.text(0, 60, descText, { 
-            fontSize: '16px', color: '#fff', align: 'center', wordWrap: { width: 130 } 
+            fontSize: '22px', // Было 16px
+            color: '#fff', 
+            align: 'center', 
+            wordWrap: { width: 130 } 
         }).setOrigin(0.5).setVisible(false);
 
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
