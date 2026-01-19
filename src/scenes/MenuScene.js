@@ -6,6 +6,19 @@ export class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
 
     create() {
+        // --- ДИАГНОСТИКА ---
+        console.log("Checking scenes...");
+        const mapScene = this.scene.manager.keys['MapScene'];
+        if (!mapScene) {
+            alert("КРИТИЧЕСКАЯ ОШИБКА: Файл MapScene.js сломан или не загружен! Проверь скобки в конце файла.");
+            return;
+        }
+        if (typeof createCardInstance !== 'function') {
+            alert("ОШИБКА: GameState.js не экспортирует createCardInstance!");
+            return;
+        }
+        // -------------------
+        
         const GW = this.scale.width;
         const GH = this.scale.height;
 
