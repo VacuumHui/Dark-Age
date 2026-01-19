@@ -1,6 +1,5 @@
 // Файл: src/scenes/MenuScene.js
 
-// ВАЖНО: Импортируем createCardInstance, чтобы карты создавались правильно (с ID и зачарованиями)
 import { GameState, createCardInstance } from '../GameState.js';
 
 export class MenuScene extends Phaser.Scene {
@@ -10,10 +9,9 @@ export class MenuScene extends Phaser.Scene {
         const GW = this.scale.width;
         const GH = this.scale.height;
 
-        // 1. Фон
         this.add.rectangle(0, 0, GW, GH, 0x110f0a).setOrigin(0);
 
-        // 2. Атмосфера (Частицы)
+        // Частицы
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffaa00, 1);
@@ -32,20 +30,16 @@ export class MenuScene extends Phaser.Scene {
             blendMode: 'ADD'
         });
 
-        // 3. Заголовок
+        // Текст
         this.add.text(GW/2, GH * 0.3, "DARK AGE", { 
-            fontSize: '80px', 
-            fontStyle: 'bold', 
-            color: '#ff4400',
-            stroke: '#000',
-            strokeThickness: 6
+            fontSize: '80px', fontStyle: 'bold', color: '#ff4400', stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5);
 
         this.add.text(GW/2, GH * 0.38, "-----------------", { 
             fontSize: '24px', color: '#888' 
         }).setOrigin(0.5);
 
-        // 4. Кнопка NEW GAME
+        // Кнопка Старта
         const startBtn = this.createButton(GW/2, GH * 0.6, "NEW GAME", 0x44aa44);
         
         startBtn.on('pointerdown', () => {
@@ -55,15 +49,8 @@ export class MenuScene extends Phaser.Scene {
 
     createButton(x, y, text, color) {
         const container = this.add.container(x, y);
-        
-        const bg = this.add.rectangle(0, 0, 300, 80, color)
-            .setStrokeStyle(4, 0xffffff)
-            .setInteractive();
-            
-        const label = this.add.text(0, 0, text, { 
-            fontSize: '32px', fontStyle: 'bold', fontFamily: 'monospace'
-        }).setOrigin(0.5);
-
+        const bg = this.add.rectangle(0, 0, 300, 80, color).setStrokeStyle(4, 0xffffff).setInteractive();
+        const label = this.add.text(0, 0, text, { fontSize: '32px', fontStyle: 'bold' }).setOrigin(0.5);
         container.add([bg, label]);
 
         bg.on('pointerover', () => container.setScale(1.05));
@@ -71,38 +58,46 @@ export class MenuScene extends Phaser.Scene {
         bg.on('pointerdown', () => {
             this.tweens.add({ targets: container, scale: 0.95, duration: 50, yoyo: true });
         });
-
         return bg;
     }
 
     startNewGame() {
-        // --- СБРОС ВСЕГО СОСТОЯНИЯ ---
-        
-        // 1. Создаем колоду ПРАВИЛЬНО (через функцию, чтобы это были объекты, а не строки)
-        GameState.deck = [
-            createCardInstance("strike"), 
-            createCardInstance("strike"), 
-            createCardInstance("strike"),
-            createCardInstance("defend"), 
-            createCardInstance("defend"), 
-            createCardInstance("defend")
-        ];
-        
-        // 2. Сбрасываем ресурсы
-        GameState.relics = [];
-        GameState.maxHp = 50;
-        GameState.currentHp = 50;
-        GameState.gold = 100;
-        
-        // 3. Сбрасываем прогресс карты
-        GameState.level = 1;
-        GameState.act = 1;
-        GameState.mapData = null;
-        GameState.mapGenerated = false;
-        GameState.currentFloor = 0;
-        GameState.currentNode = null;
+        // --- ЗАЩИТА ОТ ОШИБОК ---
+        try {
+            // Проверка: загрузилась ли функция?
+            if (typeof createCardInstance !== 'function') {
+                throw new Error("createCardInstance is not a function! Check GameState.js export.");
+            }
 
-        // 4. Переход на Карту
-        this.scene.start('MapScene');
+            console.log("Starting new game...");
+
+            // 1. Создаем колоду
+            GameState.deck = [
+                createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
+                createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
+            ];
+            
+            // 2. Сброс статов
+            GameState.relics = [];
+            GameState.maxHp = 50;
+            GameState.currentHp = 50;
+            GameState.gold = 100;
+            
+            // 3. Сброс карты
+            GameState.level = 1;
+            GameState.act = 1;
+            GameState.mapData = null;
+            GameState.mapGenerated = false;
+            GameState.currentFloor = 0;
+            GameState.currentNode = null;
+
+            // 4. Переход
+            this.scene.start('MapScene');
+
+        } catch (err) {
+            // ВЫВОД ОШИБКИ НА ЭКРАН (Чтобы ты увидел её на телефоне)
+            alert(`CRASH: ${err.message}`);
+            console.error(err);
+        }
     }
 }
