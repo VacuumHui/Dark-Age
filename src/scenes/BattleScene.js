@@ -375,7 +375,7 @@ export class BattleScene extends Phaser.Scene {
         const cardW = 90; const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
         this.hand.forEach((card, index) => {
-            card.baseX = startX + (index * cardW); card.baseY = GH - 80;
+            card.baseX = startX + (index * cardW); card.baseY = GH - 130;
             if (card !== this.zoomedCard) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 3, duration: 300 }); }
         });
     }
