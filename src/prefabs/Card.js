@@ -1,6 +1,7 @@
 // Файл: src/prefabs/Card.js
 
 import { CARDS_DB } from '../data/cards.js';
+import { ENCHANTS_DB } from '../data/enchants.js';
 import { getComputedCard } from '../managers/CardLogic.js';
 
 export class Card extends Phaser.GameObjects.Container {
@@ -9,52 +10,81 @@ export class Card extends Phaser.GameObjects.Container {
         this.scene = scene;
         this.cardInstance = cardInstance; 
         
-        // 1. ПОЛУЧАЕМ ВСЕ ДАННЫЕ ИЗ ЛОГИКИ
-        this.computedData = getComputedCard(cardInstance);
+        // Получаем финальные цифры и текст
+        this.cardData = getComputedCard(cardInstance);
         const baseData = CARDS_DB[cardInstance.id];
         
         this.isZoomed = false;
         
-        const w = 180, h = 252;
+        // --- 1. НОВЫЕ РАЗМЕРЫ ---
+        const w = 180;
+        const h = 252;
         
-        // Цвет рамки (редкость + зачарование)
+        // Цвет рамки
         let strokeColor = 0x999999;
         if (baseData.rarity === 'rare') strokeColor = 0x0088ff;
         if (baseData.rarity === 'legendary') strokeColor = 0xffaa00;
-        
         if (cardInstance.enchants && cardInstance.enchants.length > 0) {
-            strokeColor = 0xff00ff; // Фиолетовый, если есть чары
+            strokeColor = 0xff00ff;
         }
 
-        this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
-        this.art = scene.add.rectangle(0, -30, 80, 60, baseData.color);
+        // --- 2. ЭЛЕМЕНТЫ КАРТЫ (Адаптированы под 180x252) ---
+
+        // Фон
+        this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(3, strokeColor);
         
-        this.title = scene.add.text(0, -5, this.computedData.name, { fontSize: '13px', fontStyle:'bold' }).setOrigin(0.5);
+        // Арт (Картинка) - смещаем вверх
+        // Центр был 0, теперь -40, размер увеличили
+        this.art = scene.add.rectangle(0, -40, 150, 100, baseData.color);
         
-        // 2. ВЫВОДИМ СГЕНЕРИРОВАННЫЙ ТЕКСТ
-        // Он уже содержит правильные цифры (9 урона вместо 6) и новые эффекты
-        this.shortDesc = scene.add.text(0, 40, this.computedData.generatedDesc, { 
-            fontSize: '11px', color: '#ccc', align: 'center', wordWrap: {width: 90} 
+        // Заголовок - под маной, над артом или поверх арта?
+        // Ставим над артом, ближе к верху
+        this.title = scene.add.text(0, -105, this.cardData.name, { 
+            fontSize: '18px', 
+            fontStyle: 'bold',
+            align: 'center',
+            color: '#ffffff'
         }).setOrigin(0.5);
         
-        this.costCircle = scene.add.circle(-40, -60, 12, 0x00ffff);
+        // Текст описания
+        // Берем сгенерированный текст из CardLogic
+        let descText = this.cardData.generatedDesc || this.cardData.desc;
         
-        // 3. ВЫВОДИМ СТОИМОСТЬ (ПРАВИЛЬНУЮ)
-        // Если стоимость изменилась, красим в зеленый
+        // Основное описание (внизу карты)
+        this.shortDesc = scene.add.text(0, 60, descText, { 
+            fontSize: '14px', 
+            color: '#ccc', 
+            align: 'center', 
+            wordWrap: { width: 160 } // Ширина текста под новую ширину карты
+        }).setOrigin(0.5);
+        
+        // Кружок маны (Левый верхний угол)
+        // Координаты от центра: x = -w/2 + отступ, y = -h/2 + отступ
+        // -90 + 15 = -75
+        // -126 + 15 = -111
+        this.costCircle = scene.add.circle(-75, -111, 20, 0x00ffff);
+        
         let costColor = '#000';
-        if (this.computedData.cost < baseData.cost) costColor = '#008800'; 
+        if (this.cardData.cost < baseData.cost) costColor = '#008800'; 
         
-        this.costText = scene.add.text(-40, -60, this.computedData.cost, { 
-            fontSize: '16px', color: costColor, fontStyle: 'bold' 
+        this.costText = scene.add.text(-75, -111, this.cardData.cost, { 
+            fontSize: '24px', 
+            color: costColor, 
+            fontStyle: 'bold' 
         }).setOrigin(0.5);
         
-        // Полное описание для зума (тоже берем сгенерированное)
-        this.fullDesc = scene.add.text(0, 50, this.computedData.generatedDesc, { 
-            fontSize: '14px', color: '#fff', align: 'center', wordWrap: { width: 150 } 
+        // Полное описание для зума (можно сделать шрифт еще крупнее)
+        this.fullDesc = scene.add.text(0, 50, descText, { 
+            fontSize: '18px', 
+            color: '#fff', 
+            align: 'center', 
+            wordWrap: { width: 160 } 
         }).setOrigin(0.5).setVisible(false);
 
+        // Добавляем всё в контейнер
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
 
+        // --- ИНТЕРАКТИВНОСТЬ ---
         this.bg.setInteractive();
         scene.input.setDraggable(this.bg);
         this.bg.parentContainer = this;
@@ -72,25 +102,21 @@ export class Card extends Phaser.GameObjects.Container {
 
     toggleMode(isZoomed) {
         this.isZoomed = isZoomed;
-        // При зуме меняем рамку на голубую, при возврате - на родную
-        let strokeColor = this.bg.strokeColor; // Запоминаем текущий
+        let strokeColor = 0x999999;
+        const baseData = CARDS_DB[this.cardInstance.id];
         
+        if (baseData.rarity === 'rare') strokeColor = 0x0088ff;
+        if (baseData.rarity === 'legendary') strokeColor = 0xffaa00;
+        if (this.cardInstance.enchants.length > 0) strokeColor = 0xff00ff;
+
         if (isZoomed) { 
             this.shortDesc.setVisible(false); 
             this.fullDesc.setVisible(true); 
-            this.bg.setStrokeStyle(2, 0x00ffff); 
+            this.bg.setStrokeStyle(4, 0x00ffff); // Толще рамка при зуме
         } else { 
             this.shortDesc.setVisible(true); 
             this.fullDesc.setVisible(false); 
-            
-            // Восстанавливаем цвет рамки
-            const baseData = CARDS_DB[this.cardInstance.id];
-            strokeColor = 0x999999;
-            if (baseData.rarity === 'rare') strokeColor = 0x0088ff;
-            if (baseData.rarity === 'legendary') strokeColor = 0xffaa00;
-            if (this.cardInstance.enchants.length > 0) strokeColor = 0xff00ff;
-            
-            this.bg.setStrokeStyle(2, strokeColor); 
+            this.bg.setStrokeStyle(3, strokeColor); 
         }
     }
 }
