@@ -1,7 +1,7 @@
-// src/data/enchants.js
+// Файл: src/data/enchants.js
 
 export const ENCHANTS_DB = {
-    // --- ИЗМЕНЕНИЕ ЦИФР ---
+    // --- COMMON (Обычные) ---
     "sharpen": {
         name: "Точило",
         desc: "+3 Урона",
@@ -10,8 +10,16 @@ export const ENCHANTS_DB = {
         targetParam: "damage",
         value: 3
     },
-    "feather": {
-        name: "Перо",
+    "rivet": {
+        name: "Заклепка",
+        desc: "Дает 3 Блока",
+        rarity: "common",
+        type: "add_action",
+        // target: 'self' означает применить к игроку
+        action: { type: "block", value: 3, target: "self" }
+    },
+    "lightweight": {
+        name: "Облегчение",
         desc: "-1 Мана",
         rarity: "rare",
         type: "stat_modifier",
@@ -19,34 +27,38 @@ export const ENCHANTS_DB = {
         value: -1
     },
 
-    // --- НОВЫЕ ЭФФЕКТЫ (С ЯВНЫМ УКАЗАНИЕМ ЦЕЛИ) ---
-    
-    "rivet": {
-        name: "Заклепка",
-        desc: "Дает 3 Блока", // Текст для игрока
-        rarity: "common",
-        type: "add_action",
-        // ВАЖНО: target: 'self' означает "применить к тому, кто сыграл карту"
-        action: { type: "block", value: 3, target: "self" } 
-    },
-
+    // --- RARE (Редкие) ---
     "fire_rune": {
         name: "Руна Огня",
-        desc: "Накладывает 2 Яда",
+        desc: "Накладывает 2 Яда", 
         rarity: "rare",
         type: "add_action",
-        // target: 'default' (или отсутствие) означает "применить к цели карты"
-        action: { type: "apply_status", status: "poison", value: 2 } 
+        action: { type: "apply_status", status: "poison", value: 2 }
+    },
+    "ice_rune": {
+        name: "Руна Льда",
+        desc: "Накладывает Слабость",
+        rarity: "rare",
+        type: "add_action",
+        action: { type: "apply_status", status: "weak", value: 1 }
+    },
+    "stone_rune": {
+        name: "Руна Камня",
+        desc: "Дает 1 Уязвимость",
+        rarity: "rare",
+        type: "add_action",
+        action: { type: "apply_status", status: "vulnerable", value: 1 }
     },
 
+    // --- LEGENDARY (Легендарные) ---
     "vampire_rune": {
         name: "Руна Крови",
         desc: "Лечит 3 ХП",
         rarity: "legendary",
         type: "add_action",
-        action: { type: "heal", value: 3, target: "self" } // Хил применяем на себя
+        // ИСПРАВЛЕНО: type: "heal" (вместо heal_owner) и target: "self"
+        action: { type: "heal", value: 3, target: "self" }
     },
-    
     "midas_touch": {
         name: "Золотая пыль",
         desc: "+1 Мана",
