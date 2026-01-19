@@ -1,27 +1,16 @@
 // Файл: src/scenes/MenuScene.js
 
-import { GameState, createCardInstance } from '../GameState.js';
+import { GameState } from '../GameState.js';
+// Убрали импорт createCardInstance, чтобы не рисковать
 
 export class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
 
     create() {
-        // --- ДИАГНОСТИКА ---
-        console.log("Checking scenes...");
-        const mapScene = this.scene.manager.keys['MapScene'];
-        if (!mapScene) {
-            alert("КРИТИЧЕСКАЯ ОШИБКА: Файл MapScene.js сломан или не загружен! Проверь скобки в конце файла.");
-            return;
-        }
-        if (typeof createCardInstance !== 'function') {
-            alert("ОШИБКА: GameState.js не экспортирует createCardInstance!");
-            return;
-        }
-        // -------------------
-        
         const GW = this.scale.width;
         const GH = this.scale.height;
 
+        // Фон
         this.add.rectangle(0, 0, GW, GH, 0x110f0a).setOrigin(0);
 
         // Частицы
@@ -43,20 +32,23 @@ export class MenuScene extends Phaser.Scene {
             blendMode: 'ADD'
         });
 
-        // Текст
+        // Заголовок
         this.add.text(GW/2, GH * 0.3, "DARK AGE", { 
             fontSize: '80px', fontStyle: 'bold', color: '#ff4400', stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5);
 
-        this.add.text(GW/2, GH * 0.38, "-----------------", { 
+        this.add.text(GW/2, GH * 0.38, "Roguelite Deckbuilder", { 
             fontSize: '24px', color: '#888' 
         }).setOrigin(0.5);
 
-        // Кнопка Старта
+        // Кнопка
         const startBtn = this.createButton(GW/2, GH * 0.6, "NEW GAME", 0x44aa44);
         
         startBtn.on('pointerdown', () => {
-            this.startNewGame();
+            // Небольшая задержка для визуального эффекта нажатия
+            this.time.delayedCall(100, () => {
+                this.startNewGame();
+            });
         });
     }
 
@@ -74,44 +66,51 @@ export class MenuScene extends Phaser.Scene {
         return bg;
     }
 
-    startNewGame() {
-        console.log("Starting new game...");
-        
-        // ЗАЩИТА: Если функция импорта сломалась, используем запасной вариант
-        const safeCreateCard = (typeof createCardInstance === 'function') 
-            ? createCardInstance 
-            : (id) => ({ id: id, uid: Math.random(), enchants: [] });
+    // ВНУТРЕННЯЯ ФУНКЦИЯ СОЗДАНИЯ КАРТЫ (Безопасная)
+    _createCard(id) {
+        return {
+            id: id,
+            uid: Date.now() + Math.random(), // Уникальный ID
+            enchants: []
+        };
+    }
 
+    startNewGame() {
         try {
-            // 1. Сброс колоды
+            console.log("Starting new game...");
+
+            // 1. Создаем колоду, используя ВНУТРЕННЮЮ функцию
             GameState.deck = [
-                safeCreateCard("strike"), safeCreateCard("strike"), safeCreateCard("strike"),
-                safeCreateCard("defend"), safeCreateCard("defend"), safeCreateCard("defend")
+                this._createCard("strike"), 
+                this._createCard("strike"), 
+                this._createCard("strike"),
+                this._createCard("defend"), 
+                this._createCard("defend"), 
+                this._createCard("defend")
             ];
             
-            // 2. Сброс статов
+            // 2. Сбрасываем все параметры
             GameState.relics = [];
             GameState.maxHp = 50;
             GameState.currentHp = 50;
             GameState.gold = 100;
+            
             GameState.level = 1;
             GameState.act = 1;
             
-            // 3. Сброс карты
+            // 3. Обнуляем карту, чтобы она пересоздалась
             GameState.mapData = null;
             GameState.mapGenerated = false;
             GameState.currentFloor = 0;
             GameState.currentNode = null;
 
-            console.log("State reset complete. Loading MapScene...");
-            
-            // 4. Переход
+            // 4. Запускаем сцену карты
             this.scene.start('MapScene');
 
         } catch (error) {
-            // Если ошибка случится тут, мы её увидим
+            // Если всё равно упадет, мы увидим почему
+            alert("Error in startNewGame: " + error.message);
             console.error(error);
-            alert("CRITICAL ERROR IN MENU: " + error.message);
         }
     }
 }
