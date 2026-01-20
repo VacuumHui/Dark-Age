@@ -95,12 +95,23 @@ export class BattleScene extends Phaser.Scene {
             if (!this.isBattleActive) return;
             const leaderCard = gameObject.parentContainer;
             
-            // Защита от случайного драга при клике
             if (Date.now() - leaderCard.pressStartTime > 80) {
-                leaderCard.x = pointer.x;
-                leaderCard.y = pointer.y - 50; // Чуть выше пальца
+                // --- НАСТРОЙКИ СМЕЩЕНИЯ ---
+                const gap = 35; // Отступ между картами по горизонтали
                 
-                // Магнит
+                // 1. ЦЕНТРОВКА ПО ГОРИЗОНТАЛИ (чтобы палец был в центре веера)
+                const centerOffset = ((this.activeStack.length - 1) * gap) / 2;
+                
+                // 2. СМЕЩЕНИЕ ВВЕРХ (чтобы видеть текст)
+                // Если карт много, поднимаем их выше (180px), чтобы палец был у основания
+                // Если карта одна, держим её за середину (60px)
+                const verticalOffset = this.activeStack.length > 1 ? 180 : 60;
+
+                // Применяем координаты
+                leaderCard.x = pointer.x - centerOffset;
+                leaderCard.y = pointer.y - verticalOffset;
+                
+                // --- МАГНИТ (Без изменений) ---
                 const lastInStack = this.activeStack[this.activeStack.length - 1];
                 for (let i = this.hand.length - 1; i >= 0; i--) {
                     const otherCard = this.hand[i];
@@ -108,10 +119,10 @@ export class BattleScene extends Phaser.Scene {
                     
                     const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
                     
-                    if (dist < 100) { // Радиус магнита
+                    if (dist < 100) { 
                         this.activeStack.push(otherCard);
-                        // Глубина: Лидер сверху, остальные под ним
                         otherCard.setDepth(100 - this.activeStack.length); 
+                        this.tweens.add({ targets: otherCard, scale: { from: 1.1, to: 1 }, duration: 100 });
                     }
                 }
                 this.updateStackVisuals();
@@ -121,14 +132,14 @@ export class BattleScene extends Phaser.Scene {
         this.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.isBattleActive) return;
             
-            // Если это был клик -> Зум
-            if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 200) {
+            if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
                 this.activeStack = []; 
                 this.returnStackToHand(); 
                 return;
             }
 
-            // Если бросили мимо
+            this.activeStack.forEach(c => c.setDepth(0));
+
             if (!dropped) {
                 this.returnStackToHand();
             }
@@ -142,7 +153,6 @@ export class BattleScene extends Phaser.Scene {
                 return; 
             }
 
-            // Проверка маны для всего стека
             let totalCost = 0;
             this.activeStack.forEach(card => {
                 const computed = getComputedCard(card.cardInstance);
@@ -155,13 +165,15 @@ export class BattleScene extends Phaser.Scene {
                 return;
             }
 
-            // Цель
             let dropTargetUnit = null;
             if (dropZone.name === "enemy_target" && this.enemy.alive) dropTargetUnit = this.enemy;
             else if (dropZone.name === "player_target" && this.player.alive) dropTargetUnit = this.player;
 
             if (dropTargetUnit) {
-                // ЗАПУСКАЕМ КРАСИВУЮ ОЧЕРЕДЬ
+                const cardsToPlay = [...this.activeStack];
+                this.activeStack = []; 
+
+                // ЗАПУСК ПОСЛЕДОВАТЕЛЬНОСТИ
                 this.playStackSequence(dropTargetUnit);
             } else {
                 this.returnStackToHand();
