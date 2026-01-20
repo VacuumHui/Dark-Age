@@ -26,7 +26,9 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        if (!this.scene.isActive('UIScene')) { this.scene.launch('UIScene'); }
+        if (!this.scene.isActive('UIScene')) {
+            this.scene.launch('UIScene');
+        }
 
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -74,7 +76,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // ЛОГИКА ВВОДА (DRAG & DROP & STACK)
+    // ВВОД (INPUT)
     // =========================================================
 
     setupInput() {
@@ -84,7 +86,6 @@ export class BattleScene extends Phaser.Scene {
             const card = gameObject.parentContainer;
             if (this.zoomedCard) return;
 
-            // Начало стека
             this.activeStack = [card];
             card.setDepth(100); 
             card.pressStartTime = Date.now();
@@ -98,7 +99,6 @@ export class BattleScene extends Phaser.Scene {
                 leaderCard.x = pointer.x;
                 leaderCard.y = pointer.y - 80;
                 
-                // Магнит
                 const lastInStack = this.activeStack[this.activeStack.length - 1];
                 for (let i = this.hand.length - 1; i >= 0; i--) {
                     const otherCard = this.hand[i];
@@ -118,7 +118,6 @@ export class BattleScene extends Phaser.Scene {
         this.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.isBattleActive) return;
             
-            // Клик (Зум)
             if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
                 this.activeStack = []; 
                 this.returnStackToHand(); 
@@ -157,7 +156,6 @@ export class BattleScene extends Phaser.Scene {
             else if (dropZone.name === "player_target" && this.player.alive) dropTargetUnit = this.player;
 
             if (dropTargetUnit) {
-                // ИГРАЕМ СТЕК
                 const cardsToPlay = [...this.activeStack];
                 this.activeStack = []; 
 
@@ -175,14 +173,12 @@ export class BattleScene extends Phaser.Scene {
     updateStackVisuals() {
         if (this.activeStack.length < 2) return;
         const leader = this.activeStack[0];
-        
         for (let i = 1; i < this.activeStack.length; i++) {
             const follower = this.activeStack[i];
             const prevCard = this.activeStack[i-1];
             const targetX = prevCard.x;
             const targetY = prevCard.y + 50;
-
-            follower.x += ((leader.x + (i * 10)) - follower.x) * 0.3; // Небольшой сдвиг по X
+            follower.x += ((leader.x + (i * 10)) - follower.x) * 0.3;
             follower.y += (targetY - follower.y) * 0.4;
         }
     }
@@ -201,12 +197,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // БОЕВЫЕ ФУНКЦИИ (ВОТ ОНИ!)
+    // БОЕВЫЕ ДЕЙСТВИЯ
     // =========================================================
 
     playCard(card, target) {
         const computedData = getComputedCard(card.cardInstance);
-        
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
@@ -214,17 +209,9 @@ export class BattleScene extends Phaser.Scene {
                 executeAction(this, action, this.player, finalTarget); 
             }); 
         }
-        
-        // ВОТ ФУНКЦИЯ, КОТОРАЯ ВЫЗЫВАЛА ОШИБКУ
         this.spendMana(computedData.cost);
-        
         this.discardCard(card);
         this.updateGlobalUI();
-    }
-
-    spendMana(amount) { 
-        this.mana -= amount; 
-        this.updateManaUI(); 
     }
 
     discardCard(card) {
@@ -258,33 +245,6 @@ export class BattleScene extends Phaser.Scene {
         this.updateDeckUI();
         this.rearrangeHand();
     }
-
-    rearrangeHand() {
-        const GW = this.scale.width; const GH = this.scale.height;
-        const cardW = 150; const totalW = this.hand.length * cardW;
-        const startX = (GW - totalW) / 2 + (cardW / 2);
-        this.hand.forEach((card, index) => {
-            if (this.activeStack.includes(card)) return; // Не трогаем стек
-            if (card === this.zoomedCard) return;
-
-            card.baseX = startX + (index * cardW); 
-            card.baseY = GH - 110;
-            
-            this.tweens.add({ 
-                targets: card, 
-                x: card.baseX, 
-                y: card.baseY, 
-                angle: (index - (this.hand.length/2)) * 2, 
-                duration: 300 
-            }); 
-        });
-    }
-
-    returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
-
-    // =========================================================
-    // ОСТАЛЬНОЕ (Ход, Победа, UI)
-    // =========================================================
 
     endTurn() {
         if (!this.isBattleActive) return;
@@ -335,17 +295,25 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    // =========================================================
+    // СОБЫТИЯ (ПОБЕДА / ПОРАЖЕНИЕ)
+    // =========================================================
+
     handleUnitDeath(unit) {
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
         this.updateGlobalUI();
 
         if (unit.isPlayer) {
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
+            
             this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
-            this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-            const btn = this.add.rectangle(GW/2, GH/2 + 50, 300, 70, 0xffffff).setInteractive().setDepth(2001);
-            this.add.text(GW/2, GH/2 + 50, "RESTART", { fontSize: '24px', color: '#000' }).setOrigin(0.5).setDepth(2001);
+            this.add.text(GW/2, GH/2 - 60, "YOU DIED", { fontSize: '80px', color: '#ff0000', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(2001);
+            
+            const btn = this.add.rectangle(GW/2, GH/2 + 60, 300, 70, 0xffffff).setInteractive().setDepth(2001);
+            this.add.text(GW/2, GH/2 + 60, "RETURN TO MENU", { fontSize: '28px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+            
             btn.on('pointerdown', () => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
@@ -358,8 +326,13 @@ export class BattleScene extends Phaser.Scene {
 
     handleVictory() {
         this.isBattleActive = false;
+        
+        // ВОТ ОНА, ЭТА ФУНКЦИЯ!
         this.discardHandVisual(); 
-        const GW = this.scale.width; const GH = this.scale.height;
+
+        const GW = this.scale.width;
+        const GH = this.scale.height;
+
         GameState.currentHp = this.player.hp;
         GameState.level++;
         GameState.gold += 20;
@@ -373,13 +346,16 @@ export class BattleScene extends Phaser.Scene {
 
         const bg = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+
         const rewardKeys = this.rewardManager.getRewardOptions(3);
+
         rewardKeys.forEach((cardKey, index) => {
             const xOffset = (index - 1) * 200;
             const tempInstance = { id: cardKey, uid: Math.random(), enchants: [] };
             const card = new Card(this, GW/2 + xOffset, GH/2 + 50, tempInstance);
             card.setDepth(2002);
             this.add.existing(card);
+
             card.bg.setInteractive();
             card.bg.on('pointerdown', () => {
                 GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
@@ -387,6 +363,7 @@ export class BattleScene extends Phaser.Scene {
             });
             card.bg.removeAllListeners('pointerup');
         });
+        
         const skipBtn = this.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', () => { this.scene.start('MapScene'); });
     }
@@ -401,9 +378,40 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    // =========================================================
+    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+    // =========================================================
+
+    spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
+    
+    // ВОТ ЭТА ФУНКЦИЯ БЫЛА ПОТЕРЯНА. ТЕПЕРЬ ОНА НА МЕСТЕ.
+    discardHandVisual() { 
+        this.hand.forEach(card => card.destroy()); 
+        this.hand = []; 
+    }
+    
+    rearrangeHand() {
+        const GW = this.scale.width; const GH = this.scale.height;
+        const cardW = 150; const totalW = this.hand.length * cardW;
+        const startX = (GW - totalW) / 2 + (cardW / 2);
+        this.hand.forEach((card, index) => {
+            card.baseX = startX + (index * cardW); card.baseY = GH - 110;
+            if (card !== this.zoomedCard && !this.activeStack.includes(card)) { 
+                this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 2, duration: 300 }); 
+            }
+        });
+    }
+    
+    returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
     updateGlobalUI() { if (this.player) GameState.currentHp = this.player.hp; this.game.events.emit('UPDATE_UI'); }
     updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); this.updateGlobalUI(); }
     updateDeckUI() { this.deckText.setText(`Deck: ${this.drawPile.length}`); this.discardText.setText(`${this.discardPile.length}`); }
+    
+    showFloatingText(x, y, message, color) {
+        const txt = this.add.text(x, y, message, { fontSize: '24px', fontStyle: 'bold', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+        txt.setTint(color);
+        this.tweens.add({ targets: txt, y: y - 80, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
+    }
 
     createUI(GW, GH) {
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
@@ -425,6 +433,7 @@ export class BattleScene extends Phaser.Scene {
         this.deckBtn.on('pointerdown', () => this.openDeckView());
         this.discardText = this.add.text(GW - 80, GH - 110, `0`, { fontSize: '18px', color: '#aaa' }).setOrigin(0.5);
     }
+    
     createRelicUI() {
         const startX = 50; const startY = 80; const gap = 50;    
         GameState.relics.forEach((relicId, index) => {
@@ -439,6 +448,7 @@ export class BattleScene extends Phaser.Scene {
             });
         });
     }
+
     openDeckView() {
         const GW = this.scale.width; const GH = this.scale.height;
         if (!this.deckContainer) { this.deckContainer = this.add.container(0, 0).setDepth(3000).setScrollFactor(0); }
@@ -461,11 +471,7 @@ export class BattleScene extends Phaser.Scene {
         this.deckContainer.add(closeBtn);
     }
     closeDeckView() { if (this.deckContainer) this.deckContainer.setVisible(false); this.dimmer.setVisible(false); this.unzoomCard(); }
-    showFloatingText(x, y, message, color) {
-        const txt = this.add.text(x, y, message, { fontSize: '24px', fontStyle: 'bold', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-        txt.setTint(color);
-        this.tweens.add({ targets: txt, y: y - 80, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
-    }
+
     zoomCard(card) {
         if (this.zoomedCard) return; this.zoomedCard = card;
         if (card.parentContainer) {
