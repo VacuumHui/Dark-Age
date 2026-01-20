@@ -3,16 +3,18 @@
 import { Unit } from '../prefabs/Unit.js';
 import { Card } from '../prefabs/Card.js';
 import { CARDS_DB } from '../data/cards.js';
+import { RELICS_DB } from '../data/relics.js';
 import { ENEMIES_DB } from '../data/enemies.js';
-import { executeAction } from '../managers/ActionManager.js';
 import { EffectManager } from '../managers/EffectManager.js';
 import { GameState } from '../GameState.js';
 import { RewardManager } from '../managers/RewardManager.js';
 import { StatusManager } from '../managers/StatusManager.js';
 import { RelicManager } from '../managers/RelicManager.js';
-import { getComputedCard } from '../managers/CardLogic.js'; 
 import { EnemyFactory } from '../managers/EnemyFactory.js'; 
-import { BattleUIManager } from './battle/BattleUIManager.js'; // <-- МЕНЕДЖЕР ИНТЕРФЕЙСА
+
+// Подключаем наши новые под-менеджеры
+import { BattleUIManager } from './battle/BattleUIManager.js';
+import { HandManager } from './battle/HandManager.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
@@ -26,12 +28,12 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        // --- 0. Глобальный UI ---
+        // 0. Запуск глобального UI
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
 
-        // --- 1. Текстуры ---
+        // 1. Генерация текстур (если нет)
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
@@ -39,24 +41,25 @@ export class BattleScene extends Phaser.Scene {
             graphics.generateTexture('flare', 8, 8);
         }
         
-        // --- 2. Менеджеры ---
-        this.ui = new BattleUIManager(this); // Подключаем UI
+        // 2. Инициализация Менеджеров
+        this.ui = new BattleUIManager(this);          // Визуал
+        this.handManager = new HandManager(this);     // Карты и Рука
+        
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // --- 3. Данные ---
-        this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
-        this.discardPile = [];
-        this.hand = [];
-        this.activeStack = []; // Стек для комбо
+        // 3. Ресурсы сцены
+        this.mana = 3;
+        this.maxMana = 3;
 
-        // --- 4. Интерфейс ---
-        this.ui.createHUD(GW, GH); // Отрисовка через менеджер
+        // 4. Отрисовка Интерфейса (через менеджер)
+        this.ui.createHUD(GW, GH);
         this.ui.createRelicUI(); 
+        this.updateManaUI(); // Обновить текст маны сразу
 
-        // --- 5. Юниты ---
+        // 5. Создание Юнитов
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
@@ -70,12 +73,14 @@ export class BattleScene extends Phaser.Scene {
         this.relicManager.trigger('onBattleStart');
         this.updateGlobalUI();
 
-        // --- 6. Старт ---
-        this.drawCards(5);
-        this.setupInput();
+        // 6. Старт игры (Раздача карт через менеджер)
+        this.handManager.drawCards(5);
+        this.handManager.setupInput();
         
-        // Затемнение для зума/колоды (нужно хранить в сцене для управления)
-        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
+        // Затемнение для зума (оставляем в сцене, так как оно перекрывает всё)
+        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85)
+            .setVisible(false).setDepth(900).setInteractive();
+            
         this.dimmer.on('pointerdown', () => {
             if (this.zoomedCard) this.unzoomCard();
             else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView();
@@ -83,7 +88,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // ЛОГИКА ИГРЫ
+    // ЛОГИКА БОЯ (TURN FLOW)
     // =========================================================
 
     startNewBattle(enemyKey) {
@@ -93,301 +98,115 @@ export class BattleScene extends Phaser.Scene {
         
         this.enemy = EnemyFactory.createEnemy(this, GW * 0.75, GH * 0.45, enemyKey);
         this.add.existing(this.enemy);
+        
         this.enemy.chooseIntent();
         this.isBattleActive = true;
     }
 
-    drawCards(amount) {
-        const GW = this.scale.width;
-        for (let i = 0; i < amount; i++) {
-            if (this.hand.length >= 6) break;
-
-            if (this.drawPile.length === 0) {
-                if (this.discardPile.length > 0) {
-                    this.drawPile = Phaser.Utils.Array.Shuffle([...this.discardPile]);
-                    this.discardPile = [];
-                    this.ui.showFloatingText(100, 500, "Reshuffle!", 0xaaaaaa);
-                } else {
-                    break;
-                }
-            }
-
-            const cardInstance = this.drawPile.pop();
-            const card = new Card(this, GW/2, this.scale.height + 200, cardInstance);
-            this.add.existing(card);
-            this.hand.push(card);
-        }
-        this.updateDeckUI();
-        this.rearrangeHand();
-    }
-
-    // =========================================================
-    // ВВОД И СТЕК КАРТ (Drag & Drop)
-    // =========================================================
-
-    setupInput() {
-        this.input.on('dragstart', (pointer, gameObject) => {
-            if (!this.isBattleActive) return;
-            if (this.deckContainer && this.deckContainer.visible) return;
-            const card = gameObject.parentContainer;
-            if (this.zoomedCard) return;
-
-            this.activeStack = [card];
-            card.setDepth(100); 
-            card.pressStartTime = Date.now();
-        });
-
-        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            if (!this.isBattleActive) return;
-            const leaderCard = gameObject.parentContainer;
-            
-            if (Date.now() - leaderCard.pressStartTime > 80) {
-                // Центровка веера относительно пальца
-                const gap = 35; 
-                const centerOffset = ((this.activeStack.length - 1) * gap) / 2;
-                const verticalOffset = this.activeStack.length > 1 ? 110 : 80;
-
-                this.targetPointerX = pointer.x;
-                this.targetPointerY = pointer.y - verticalOffset;
-
-                leaderCard.x = pointer.x - centerOffset;
-                leaderCard.y = pointer.y - verticalOffset;
-                
-                // Магнит
-                const lastInStack = this.activeStack[this.activeStack.length - 1];
-                for (let i = this.hand.length - 1; i >= 0; i--) {
-                    const otherCard = this.hand[i];
-                    if (this.activeStack.includes(otherCard)) continue;
-                    
-                    const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
-                    
-                    if (dist < 130) { 
-                        this.activeStack.push(otherCard);
-                        otherCard.setDepth(100 - this.activeStack.length); 
-                        this.tweens.add({ targets: otherCard, scale: { from: 1.1, to: 1 }, duration: 100 });
-                    }
-                }
-                this.updateStackVisuals();
-            }
-        });
-
-        this.input.on('dragend', (pointer, gameObject, dropped) => {
-            if (!this.isBattleActive) return;
-            
-            if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
-                this.activeStack = []; 
-                this.returnStackToHand(); 
-                return;
-            }
-
-            this.activeStack.forEach(c => c.setDepth(0));
-
-            if (!dropped) {
-                this.returnStackToHand();
-            }
-        });
-
-        this.input.on('drop', (pointer, gameObject, dropZone) => {
-            if (!this.isBattleActive) return;
-            
-            if (dropZone.name === "discard_zone") { 
-                this.discardStack(); 
-                return; 
-            }
-
-            let totalCost = 0;
-            this.activeStack.forEach(card => {
-                const computed = getComputedCard(card.cardInstance);
-                totalCost += computed.cost;
-            });
-
-            if (this.mana < totalCost) {
-                this.ui.showFloatingText(this.activeStack[0].x, this.activeStack[0].y, "Not enough Mana!", 0xff0000);
-                this.returnStackToHand();
-                return;
-            }
-
-            let dropTargetUnit = null;
-            if (dropZone.name === "enemy_target" && this.enemy.alive) dropTargetUnit = this.enemy;
-            else if (dropZone.name === "player_target" && this.player.alive) dropTargetUnit = this.player;
-
-            if (dropTargetUnit) {
-                this.playStackSequence(dropTargetUnit);
-            } else {
-                this.returnStackToHand();
-            }
-        });
-    }
-
-    updateStackVisuals() {
-        if (this.activeStack.length === 0) return;
-        const anchorX = this.targetPointerX || this.activeStack[0].x;
-        const anchorY = this.targetPointerY || this.activeStack[0].y;
-        const gap = 40;     
-        const angleStep = 10; 
-        const startX = anchorX - ((this.activeStack.length - 1) * gap) / 2;
-        const centerAngleIndex = (this.activeStack.length - 1) / 2;
-
-        for (let i = 0; i < this.activeStack.length; i++) {
-            const card = this.activeStack[i];
-            const targetX = startX + (i * gap);
-            const distFromCenter = Math.abs(i - centerAngleIndex);
-            const targetY = anchorY + (distFromCenter * 10); 
-            const speed = (i === 0) ? 0.6 : 0.4;
-            
-            card.x += (targetX - card.x) * speed;
-            card.y += (targetY - card.y) * speed;
-
-            const targetAngle = (i - centerAngleIndex) * angleStep;
-            card.angle += (targetAngle - card.angle) * 0.3;
-        }
-    }
-
-    playStackSequence(target) {
-        const stackToPlay = [...this.activeStack];
-        this.activeStack = []; 
-        this.hand = this.hand.filter(c => !stackToPlay.includes(c));
-        this.rearrangeHand();
-        const stepDelay = Math.max(100, 500 - (stackToPlay.length * 80));
-
-        stackToPlay.forEach((card, index) => {
-            card.setDepth(2000 + index);
-            const hoverX = target.x + (target.isPlayer ? 250 : -250); 
-            const hoverY = target.y - 50;
-
-            this.tweens.add({
-                targets: card, x: hoverX, y: hoverY, scale: 1.3,
-                angle: (target.isPlayer ? -15 : 15), duration: 400, delay: index * stepDelay, ease: 'Power2',
-                onComplete: () => {
-                    this.tweens.add({
-                        targets: card, x: target.x, y: target.y, duration: 120, ease: 'Quad.easeIn',
-                        onComplete: () => { this.playCardLogic(card, target); }
-                    });
-                }
-            });
-        });
-    }
-
-    playCardLogic(card, target) {
-        const computedData = getComputedCard(card.cardInstance);
-        if (computedData.actions) { 
-            computedData.actions.forEach(action => { 
-                let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.player;
-                executeAction(this, action, this.player, finalTarget); 
-            }); 
-        }
-        this.spendMana(computedData.cost);
-        this.discardPile.push(card.cardInstance);
-        this.tweens.add({
-            targets: card, alpha: 0, scale: 0.5, y: card.y - 50, duration: 300,
-            onComplete: () => { card.destroy(); this.updateDeckUI(); }
-        });
-        this.updateGlobalUI();
-    }
-
-    // =========================================================
-    // ОСТАЛЬНЫЕ МЕТОДЫ
-    // =========================================================
-
-    returnStackToHand() {
-        this.activeStack.forEach(card => {
-            this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 });
-        });
-        this.activeStack = [];
-    }
-
-    discardStack() {
-        const cardsToDiscard = [...this.activeStack];
-        this.activeStack = [];
-        this.hand = this.hand.filter(c => !cardsToDiscard.includes(c));
-        cardsToDiscard.forEach(card => {
-            this.discardPile.push(card.cardInstance);
-            this.tweens.add({ targets: card, x: this.trashZone.x, y: this.trashZone.y, alpha: 0, scale: 0.1, duration: 300, onComplete: () => card.destroy() });
-        });
-        this.updateDeckUI();
-        this.rearrangeHand();
-    }
-
-    spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
-    discardHandVisual() { this.hand.forEach(card => card.destroy()); this.hand = []; }
-    
-    rearrangeHand() {
-        const GW = this.scale.width; const GH = this.scale.height;
-        const cardW = 150; const totalW = this.hand.length * cardW;
-        const startX = (GW - totalW) / 2 + (cardW / 2);
-        this.hand.forEach((card, index) => {
-            if (this.activeStack.includes(card)) return;
-            if (card === this.zoomedCard) return;
-            card.baseX = startX + (index * cardW); 
-            card.baseY = GH - 110;
-            this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 2, duration: 300 }); 
-        });
-    }
-
-    updateGlobalUI() { if (this.player) GameState.currentHp = this.player.hp; this.game.events.emit('UPDATE_UI'); }
-    
-    updateManaUI() { 
-        this.ui.updateMana(this.mana, this.maxMana);
-        this.updateGlobalUI(); 
-    }
-    
-    updateDeckUI() { 
-        this.ui.updateDeckCount(this.drawPile.length, this.discardPile.length);
-    }
-
-    // --- КОНЕЦ ХОДА (ИСПРАВЛЕНО) ---
+    // Метод вызывается кнопкой "END TURN"
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        // 1. Старт хода врага
-        if (this.statusManager) this.statusManager.onTurnStart(this.enemy); 
+        // 1. НАЧАЛО ХОДА ВРАГА
+        if (this.statusManager) {
+            this.statusManager.onTurnStart(this.enemy); // Яд
+        }
+        
+        // СБРОС ЩИТА ВРАГА (Перед его действием)
         this.enemy.resetShield();
 
         let skipEnemyTurn = false;
-        if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        if (this.statusManager) {
+            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        }
 
-        if (!skipEnemyTurn) this.enemy.executeIntent(this.player);
-        else console.log("Враг заморожен");
+        if (!skipEnemyTurn) {
+            this.enemy.executeIntent(this.player);
+        } else {
+            console.log("Враг заморожен");
+        }
         
         this.updateGlobalUI();
+
         if (!this.player.alive) return;
 
-        // 2. Передача хода игроку
+        // 2. ПЕРЕДАЧА ХОДА ИГРОКУ (Задержка)
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
+            // Завершение эффектов врага
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
+
+            // Начало хода игрока (Яд, Сила)
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
+            
             this.updateGlobalUI();
 
             if (!this.player.alive) return;
             
+            // СБРОС ЩИТА ИГРОКА
             this.player.resetShield(); 
+            
+            // Враг планирует
             this.enemy.chooseIntent();
             
+            // Восстановление маны
             this.mana = this.maxMana; 
             this.updateManaUI();
             
-            const cardsNeeded = 5 - this.hand.length;
-            if (cardsNeeded > 0) this.drawCards(cardsNeeded);
-            else this.rearrangeHand();
+            // Добор карт (через HandManager)
+            const cardsNeeded = 5 - this.handManager.hand.length;
+            if (cardsNeeded > 0) this.handManager.drawCards(cardsNeeded);
+            else this.handManager.rearrangeHand();
         });
     }
 
+    // =========================================================
+    // СВЯЗУЮЩИЕ МЕТОДЫ (BRIDGE)
+    // Эти методы вызывают другие менеджеры, поэтому они должны быть в сцене
+    // =========================================================
+
+    spendMana(amount) { 
+        this.mana -= amount; 
+        this.updateManaUI(); 
+    }
+
+    updateManaUI() {
+        this.ui.updateMana(this.mana, this.maxMana);
+        this.updateGlobalUI();
+    }
+
+    updateGlobalUI() {
+        if (this.player) {
+            GameState.currentHp = this.player.hp;
+        }
+        this.game.events.emit('UPDATE_UI');
+    }
+
+    // Вызывается из HandManager при сбросе/доборе
+    updateDeckUI() {
+        this.ui.updateDeckCount(
+            this.handManager.drawPile.length, 
+            this.handManager.discardPile.length
+        );
+    }
+
+    // =========================================================
+    // СОБЫТИЯ СМЕРТИ И ПОБЕДЫ
+    // =========================================================
+
     handleUnitDeath(unit) {
-        const GW = this.scale.width; const GH = this.scale.height;
         this.updateGlobalUI();
 
         if (unit.isPlayer) {
             this.isBattleActive = false;
-            // Вызов экрана поражения через UI
-            this.ui.showDefeatScreen(() => {
+            // Показываем экран поражения через UI Manager
+            this.ui.showDefeatScreen(() => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
             });
@@ -399,86 +218,167 @@ export class BattleScene extends Phaser.Scene {
 
     handleVictory() {
         this.isBattleActive = false;
-        this.discardHandVisual(); 
+        this.handManager.discardHandVisual(); 
 
-        const GW = this.scale.width; const GH = this.scale.height;
+        const GW = this.scale.width; 
+        const GH = this.scale.height;
+
         GameState.currentHp = this.player.hp;
         GameState.level++;
         GameState.gold += 20;
         this.updateGlobalUI();
 
+        // Проверка на Босса
         const enemyData = ENEMIES_DB[this.enemyKey];
         if (enemyData && enemyData.tier === 'boss') {
-            // Вызов экрана босса через UI
             this.ui.showActClearScreen(GameState.act, () => {
-                GameState.act++; GameState.level = 1; GameState.mapData = null; GameState.currentFloor = 0; GameState.currentHp = GameState.maxHp;
+                GameState.act++; 
+                GameState.level = 1; 
+                GameState.mapData = null; 
+                GameState.currentFloor = 0; 
+                GameState.currentHp = GameState.maxHp;
                 this.scene.start('MapScene');
             });
             return;
         }
 
+        // Выбор наград
         const rewardKeys = this.rewardManager.getRewardOptions(3);
         
-        // Вызов экрана победы через UI
+        // Показываем экран победы через UI Manager
         this.ui.showVictoryScreen(
             rewardKeys,
-            (cardKey) => {
+            (cardKey) => { // onSelect
                 GameState.deck.push({ id: cardKey, uid: Date.now(), enchants: [] });
                 this.scene.start('MapScene');
             },
-            () => { this.scene.start('MapScene'); }
+            () => { // onSkip
+                this.scene.start('MapScene'); 
+            }
         );
     }
 
-    // --- ПРОСМОТР КОЛОДЫ (Оставили локально, т.к. требует взаимодействия с инпутом) ---
+    // =========================================================
+    // ПРОСМОТР КОЛОДЫ И ЗУМ
+    // (Оставлено в Сцене, так как Card.js зависит от scene.zoomCard)
+    // =========================================================
+
+    // Перенаправляем вызов из UI кнопки в этот метод
     openDeckView() {
-        const GW = this.scale.width; const GH = this.scale.height;
-        if (!this.deckContainer) { this.deckContainer = this.add.container(0, 0).setDepth(3000).setScrollFactor(0); }
-        this.deckContainer.removeAll(true); this.deckContainer.setVisible(true);
+        const GW = this.scale.width;
+        
+        if (!this.deckContainer) {
+            this.deckContainer = this.add.container(0, 0).setDepth(3000).setScrollFactor(0);
+        }
+        this.deckContainer.removeAll(true);
+        this.deckContainer.setVisible(true);
         this.dimmer.setDepth(2999).setVisible(true);
-        const title = this.add.text(GW/2, 50, `FULL DECK (${GameState.deck.length})`, { fontSize: '40px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+
+        const title = this.add.text(GW/2, 50, `FULL DECK (${GameState.deck.length})`, { 
+            fontSize: '40px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 4 
+        }).setOrigin(0.5);
         this.deckContainer.add(title);
-        
-        const startX = 150; const startY = 250; const gapX = 120; const gapY = 230;
+
+        const startX = 150; 
+        const startY = 250; 
+        const gapX = 120; 
+        const gapY = 230;
         const cardsPerRow = Math.floor((GW - 200) / gapX);
+
+        // Сортировка
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
-        
+
         sortedDeck.forEach((cardInstance, index) => {
-            const col = index % cardsPerRow; const row = Math.floor(index / cardsPerRow);
-            const x = startX + (col * gapX); const y = startY + (row * gapY);
+            const col = index % cardsPerRow;
+            const row = Math.floor(index / cardsPerRow);
+            const x = startX + (col * gapX);
+            const y = startY + (row * gapY);
+
+            // Создаем карту для просмотра
             const card = new Card(this, x, y, cardInstance);
-            this.input.setDraggable(card.bg, false);
+            this.input.setDraggable(card.bg, false); // Драгать нельзя
             this.deckContainer.add(card);
         });
-        const closeBtn = this.add.text(GW/2, GH - 80, "[ CLOSE VIEW ]", { fontSize: '30px', color: '#ff5555', fontStyle: 'bold', backgroundColor: '#000' }).setOrigin(0.5).setInteractive();
+
+        const closeBtn = this.add.text(GW/2, this.scale.height - 80, "[ CLOSE VIEW ]", { 
+            fontSize: '30px', color: '#ff5555', fontStyle: 'bold', backgroundColor: '#000' 
+        }).setOrigin(0.5).setInteractive();
+        
         closeBtn.on('pointerdown', () => this.closeDeckView());
         this.deckContainer.add(closeBtn);
     }
-    closeDeckView() { if (this.deckContainer) this.deckContainer.setVisible(false); this.dimmer.setVisible(false); this.unzoomCard(); }
+
+    closeDeckView() {
+        if (this.deckContainer) this.deckContainer.setVisible(false);
+        this.dimmer.setVisible(false);
+        this.unzoomCard();
+    }
 
     zoomCard(card) {
-        if (this.zoomedCard) return; this.zoomedCard = card;
+        if (this.zoomedCard) return; 
+        this.zoomedCard = card;
+        
+        // Если карта в контейнере (в колоде) - выносим её на сцену для зума
         if (card.parentContainer) {
             this.parentContainerRef = card.parentContainer;
-            card.savedContainerX = card.x; card.savedContainerY = card.y;
+            card.savedContainerX = card.x;
+            card.savedContainerY = card.y;
             const worldPos = card.getWorldTransformMatrix();
-            card.x = worldPos.tx; card.y = worldPos.ty;
+            card.x = worldPos.tx;
+            card.y = worldPos.ty;
             card.parentContainer.remove(card);
             this.add.existing(card);
         }
+
         this.dimmer.setDepth(2999).setVisible(true);
-        card.setDepth(3001); card.setScrollFactor(0);
-        card.savedX = card.x; card.savedY = card.y; card.savedAngle = card.angle; card.savedScale = card.scale;
-        card.toggleMode(true);
-        this.tweens.add({ targets: card, x: this.scale.width / 2, y: this.scale.height / 2, angle: 0, scale: 2.5, duration: 300, ease: 'Back.out' });
+        card.setDepth(3001); 
+        card.setScrollFactor(0);
+        card.savedX = card.x; 
+        card.savedY = card.y; 
+        card.savedScale = card.scale;
+        card.toggleMode(true); // Показать подробный текст
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: this.scale.width / 2, 
+            y: this.scale.height / 2, 
+            scale: 2.5, 
+            duration: 300, 
+            ease: 'Back.out' 
+        });
     }
+    
     unzoomCard() {
-        if (!this.zoomedCard) return; const card = this.zoomedCard;
-        this.zoomedCard = null; card.toggleMode(false);
-        this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2', onComplete: () => {
-            if (this.parentContainerRef) { this.parentContainerRef.add(card); card.x = card.savedContainerX; card.y = card.savedContainerY; this.parentContainerRef = null; }
-            if (this.deckContainer && this.deckContainer.visible) this.dimmer.setDepth(2999); else this.dimmer.setVisible(false);
-            card.setDepth(0);
-        }});
+        if (!this.zoomedCard) return; 
+        const card = this.zoomedCard;
+        this.zoomedCard = null; 
+        
+        card.toggleMode(false);
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: card.savedX, 
+            y: card.savedY, 
+            scale: card.savedScale || 1, // Возвращаем исходный масштаб
+            duration: 250, 
+            ease: 'Power2',
+            onComplete: () => {
+                // Возвращаем в контейнер, если была там
+                if (this.parentContainerRef) {
+                    this.parentContainerRef.add(card);
+                    card.x = card.savedContainerX;
+                    card.y = card.savedContainerY;
+                    this.parentContainerRef = null;
+                }
+                
+                // Убираем затемнение, если колода не открыта
+                if (this.deckContainer && this.deckContainer.visible) {
+                    this.dimmer.setDepth(2999);
+                } else {
+                    this.dimmer.setVisible(false);
+                }
+                card.setDepth(0);
+            }
+        });
     }
 }
