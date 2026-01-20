@@ -169,32 +169,47 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // --- НОВОЕ: ВЕЕР ПРИ ПЕРЕТАСКИВАНИИ ---
+ // --- ИЗМЕНЕННЫЙ МЕТОД: ВЕЕР (ТЕПЕРЬ КРУТИТ И ПЕРВУЮ КАРТУ) ---
     updateStackVisuals() {
-        if (this.activeStack.length < 2) return;
+        // Если карт нет или одна - нечего крутить особо, но для одной можно выровнять
+        if (this.activeStack.length === 0) return;
+
         const leader = this.activeStack[0];
         
-        // 1. Увеличиваем угол поворота (было 5, стало 12)
-        const angleStep = 12; 
-        const totalAngle = (this.activeStack.length - 1) * angleStep;
+        // Настройки веера
+        const angleStep = 15; // Угол между картами (чем больше, тем шире веер)
+        
+        // Вычисляем "центровку", чтобы веер был симметричным
+        // Например, если 3 карты: углы будут -15, 0, +15
+        const centerOffsetAngle = ((this.activeStack.length - 1) * angleStep) / 2;
 
-        for (let i = 1; i < this.activeStack.length; i++) {
-            const follower = this.activeStack[i];
-            
-            const offsetX = i * 35; 
-            const offsetY = Math.abs(i - this.activeStack.length/2) * 5 + 60; 
+        for (let i = 0; i < this.activeStack.length; i++) {
+            const card = this.activeStack[i];
 
-            // Считаем позицию относительно ЛИДЕРА (а не предыдущей карты, так стабильнее веер)
-            const targetX = leader.x + offsetX - (this.activeStack.length * 15);
-            const targetY = leader.y + offsetY;
+            // 1. РАСЧЕТ УГЛА (ДЛЯ ВСЕХ)
+            // Теперь и первая карта (i=0) получит свой наклон
+            const targetAngle = (i * angleStep) - centerOffsetAngle;
             
-            // Плавное следование
-            follower.x += (targetX - follower.x) * 0.4;
-            follower.y += (targetY - follower.y) * 0.4;
-            
-            // Поворот
-            const targetAngle = (i * angleStep * 1.5) - (this.activeStack.length * angleStep * 0.5);
-            follower.angle += (targetAngle - follower.angle) * 0.3;
+            // Плавный поворот (Lerp)
+            card.angle += (targetAngle - card.angle) * 0.3;
+
+            // 2. РАСЧЕТ ПОЗИЦИИ (ТОЛЬКО ДЛЯ ХВОСТА)
+            // Первая карта (i=0) жестко привязана к пальцу в событии 'drag',
+            // поэтому её координаты X/Y здесь трогать НЕЛЬЗЯ, иначе она будет дрожать.
+            if (i > 0) {
+                // Смещение карты относительно Лидера
+                const offsetX = i * 35; // Сдвиг вправо
+                // Дуга: крайние карты чуть ниже, но тут мы делаем просто лесенку вниз
+                const offsetY = Math.abs(i - this.activeStack.length/2) * 5 + 60; 
+
+                // Центрируем позицию относительно пальца
+                const targetX = leader.x + offsetX - (this.activeStack.length * 15);
+                const targetY = leader.y + offsetY;
+
+                // Плавное следование
+                card.x += (targetX - card.x) * 0.4;
+                card.y += (targetY - card.y) * 0.4;
+            }
         }
     }
 
