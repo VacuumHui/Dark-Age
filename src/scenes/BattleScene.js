@@ -174,27 +174,26 @@ export class BattleScene extends Phaser.Scene {
         if (this.activeStack.length < 2) return;
         const leader = this.activeStack[0];
         
-        // Чем больше карт, тем сильнее разворот
-        const angleStep = 5; 
+        // 1. Увеличиваем угол поворота (было 5, стало 12)
+        const angleStep = 12; 
         const totalAngle = (this.activeStack.length - 1) * angleStep;
-        const startAngle = leader.angle - (totalAngle / 2);
 
         for (let i = 1; i < this.activeStack.length; i++) {
             const follower = this.activeStack[i];
             
-            // Смещение относительно лидера (веером)
-            const offsetX = i * 20; 
-            const offsetY = Math.abs(i - this.activeStack.length/2) * 5 + 30; // Дуга
+            const offsetX = i * 35; 
+            const offsetY = Math.abs(i - this.activeStack.length/2) * 5 + 60; 
 
-            const targetX = leader.x + offsetX - (this.activeStack.length * 10);
+            // Считаем позицию относительно ЛИДЕРА (а не предыдущей карты, так стабильнее веер)
+            const targetX = leader.x + offsetX - (this.activeStack.length * 15);
             const targetY = leader.y + offsetY;
             
-            // Плавное следование (Lerp)
-            follower.x += (targetX - follower.x) * 0.5;
-            follower.y += (targetY - follower.y) * 0.5;
+            // Плавное следование
+            follower.x += (targetX - follower.x) * 0.4;
+            follower.y += (targetY - follower.y) * 0.4;
             
             // Поворот
-            const targetAngle = (i * angleStep * 2) - (this.activeStack.length * angleStep);
+            const targetAngle = (i * angleStep * 1.5) - (this.activeStack.length * angleStep * 0.5);
             follower.angle += (targetAngle - follower.angle) * 0.3;
         }
     }
