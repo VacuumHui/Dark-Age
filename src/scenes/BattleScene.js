@@ -198,45 +198,43 @@ export class BattleScene extends Phaser.Scene {
         }
     }
 
-    // --- НОВОЕ: КРАСИВАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ ПРИМЕНЕНИЯ ---
+    // --- ИЗМЕНЕННЫЙ МЕТОД: АНИМАЦИЯ АТАКИ ---
     playStackSequence(target) {
-        // 1. Изымаем карты из руки СРАЗУ, чтобы rearrangeHand их не трогал
         const stackToPlay = [...this.activeStack];
-        this.activeStack = []; // Очищаем активный стек
+        this.activeStack = []; 
         
-        // Удаляем из логической руки
         this.hand = this.hand.filter(c => !stackToPlay.includes(c));
-        
-        // Сразу перестраиваем оставшиеся карты в руке
         this.rearrangeHand();
 
-        // 2. Рассчитываем скорость (чем больше карт, тем быстрее)
-        // Если 1 карта - 500мс, если 5 карт - 150мс задержка
         const stepDelay = Math.max(150, 600 - (stackToPlay.length * 100));
 
         stackToPlay.forEach((card, index) => {
-            // Поднимаем карту, чтобы она была поверх всего при полете
             card.setDepth(2000 + index);
 
-            // Анимация подлета к цели
+            // НАСТРОЙКА ПОЗИЦИИ ПЕРЕД УДАРОМ
+            // target.isPlayer ? 220 : -220  ---> Отодвинули дальше (было 100)
+            // target.y - 50                 ---> Чуть выше центра врага
+            const hoverX = target.x + (target.isPlayer ? 250 : -250); 
+            const hoverY = target.y - 50;
+
             this.tweens.add({
                 targets: card,
-                x: target.x + (target.isPlayer ? 100 : -100), // Чуть сбоку от цели
-                y: target.y,
-                scale: 1.2, // Чуть увеличиваем
-                angle: 0,   // Выравниваем
+                x: hoverX, 
+                y: hoverY,
+                scale: 1.3, // Сделали карту чуть крупнее перед ударом
+                angle: (target.isPlayer ? -15 : 15), // Наклонили в сторону врага
                 duration: 400,
-                delay: index * stepDelay, // Задержка очереди
+                delay: index * stepDelay,
                 ease: 'Power2',
                 onComplete: () => {
-                    // Эффект "Удара" картой
+                    // УДАР (Резкое движение в центр цели)
                     this.tweens.add({
                         targets: card,
-                        x: target.x, // Втыкается в цель
-                        duration: 100,
-                        yoyo: true,
+                        x: target.x,
+                        y: target.y,
+                        duration: 120, // Быстрый удар
+                        ease: 'Quad.easeIn', // Ускорение
                         onComplete: () => {
-                            // ТОЛЬКО ТЕПЕРЬ ПРИМЕНЯЕМ ЭФФЕКТ
                             this.playCardLogic(card, target);
                         }
                     });
