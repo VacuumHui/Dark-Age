@@ -96,19 +96,16 @@ export class BattleScene extends Phaser.Scene {
             const leaderCard = gameObject.parentContainer;
             
             if (Date.now() - leaderCard.pressStartTime > 80) {
-                // --- НАСТРОЙКИ СМЕЩЕНИЯ ---
-                const gap = 35; // Отступ между картами по горизонтали
-                
-                // 1. ЦЕНТРОВКА ПО ГОРИЗОНТАЛИ (чтобы палец был в центре веера)
-                const centerOffset = ((this.activeStack.length - 1) * gap) / 2;
-                
-                // 2. СМЕЩЕНИЕ ВВЕРХ (чтобы видеть текст)
-                // Если карт много, поднимаем их выше (180px), чтобы палец был у основания
-                // Если карта одна, держим её за середину (60px)
+                // --- НАСТРОЙКИ ---
+                const gap = 40; // Расстояние между картами
                 const verticalOffset = this.activeStack.length > 1 ? 180 : 60;
 
-                // Применяем координаты
-                leaderCard.x = pointer.x - centerOffset;
+                // Считаем ширину всего веера
+                const totalFanWidth = (this.activeStack.length - 1) * gap;
+                
+                // Сдвигаем ЛИДЕРА влево на половину ширины.
+                // Теперь палец указывает ровно в центр группы.
+                leaderCard.x = pointer.x - (totalFanWidth / 2);
                 leaderCard.y = pointer.y - verticalOffset;
                 
                 // --- МАГНИТ (Без изменений) ---
@@ -117,11 +114,14 @@ export class BattleScene extends Phaser.Scene {
                     const otherCard = this.hand[i];
                     if (this.activeStack.includes(otherCard)) continue;
                     
+                    // Увеличил радиус магнита для удобства (140)
                     const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
                     
-                    if (dist < 100) { 
+                    if (dist < 140) { 
                         this.activeStack.push(otherCard);
+                        // Важно: Лидер (0) сверху (слой 100), остальные под ним (99, 98...)
                         otherCard.setDepth(100 - this.activeStack.length); 
+                        
                         this.tweens.add({ targets: otherCard, scale: { from: 1.1, to: 1 }, duration: 100 });
                     }
                 }
@@ -172,8 +172,6 @@ export class BattleScene extends Phaser.Scene {
             if (dropTargetUnit) {
                 const cardsToPlay = [...this.activeStack];
                 this.activeStack = []; 
-
-                // ЗАПУСК ПОСЛЕДОВАТЕЛЬНОСТИ
                 this.playStackSequence(dropTargetUnit);
             } else {
                 this.returnStackToHand();
@@ -183,44 +181,43 @@ export class BattleScene extends Phaser.Scene {
 
  // --- ИЗМЕНЕННЫЙ МЕТОД: ВЕЕР (ТЕПЕРЬ КРУТИТ И ПЕРВУЮ КАРТУ) ---
     updateStackVisuals() {
-        // Если карт нет или одна - нечего крутить особо, но для одной можно выровнять
         if (this.activeStack.length === 0) return;
 
         const leader = this.activeStack[0];
         
         // Настройки веера
-        const angleStep = 15; // Угол между картами (чем больше, тем шире веер)
-        
-        // Вычисляем "центровку", чтобы веер был симметричным
-        // Например, если 3 карты: углы будут -15, 0, +15
-        const centerOffsetAngle = ((this.activeStack.length - 1) * angleStep) / 2;
+        const gap = 40;       // Отступ по X
+        const angleStep = 10; // Угол поворота (уменьшил, чтобы не было "каши")
+        const arcStrength = 15; // Насколько сильно карты опускаются по краям (Арка)
+
+        // Центр веера (индекс середины)
+        const centerIndex = (this.activeStack.length - 1) / 2;
 
         for (let i = 0; i < this.activeStack.length; i++) {
             const card = this.activeStack[i];
-
-            // 1. РАСЧЕТ УГЛА (ДЛЯ ВСЕХ)
-            // Теперь и первая карта (i=0) получит свой наклон
-            const targetAngle = (i * angleStep) - centerOffsetAngle;
             
-            // Плавный поворот (Lerp)
+            // 1. Рассчитываем УГОЛ
+            // (i - center) дает нам: -1.5, -0.5, 0.5, 1.5 и т.д.
+            const targetAngle = (i - centerIndex) * angleStep;
+            
+            // 2. Рассчитываем ПОЗИЦИЮ Y (Арка)
+            // Карты по краям ниже, чем в центре
+            const distFromCenter = Math.abs(i - centerIndex);
+            const offsetY = distFromCenter * arcStrength; 
+
+            // 3. Рассчитываем ПОЗИЦИЮ X
+            const offsetX = i * gap;
+
+            // --- ПРИМЕНЯЕМ ---
+            // Угол применяем плавно (для красоты)
             card.angle += (targetAngle - card.angle) * 0.3;
 
-            // 2. РАСЧЕТ ПОЗИЦИИ (ТОЛЬКО ДЛЯ ХВОСТА)
-            // Первая карта (i=0) жестко привязана к пальцу в событии 'drag',
-            // поэтому её координаты X/Y здесь трогать НЕЛЬЗЯ, иначе она будет дрожать.
-            if (i > 0) {
-                // Смещение карты относительно Лидера
-                const offsetX = i * 35; // Сдвиг вправо
-                // Дуга: крайние карты чуть ниже, но тут мы делаем просто лесенку вниз
-                const offsetY = Math.abs(i - this.activeStack.length/2) * 5 + 60; 
-
-                // Центрируем позицию относительно пальца
-                const targetX = leader.x + offsetX - (this.activeStack.length * 15);
-                const targetY = leader.y + offsetY;
-
-                // Плавное следование
-                card.x += (targetX - card.x) * 0.4;
-                card.y += (targetY - card.y) * 0.4;
+            // Позицию применяем ЖЕСТКО (без интерполяции), чтобы карты не отставали от пальца
+            if (i === 0) {
+                // Лидера по X/Y не трогаем, им управляет setupInput
+            } else {
+                card.x = leader.x + offsetX;
+                card.y = leader.y + offsetY;
             }
         }
     }
