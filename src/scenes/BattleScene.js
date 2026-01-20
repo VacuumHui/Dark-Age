@@ -76,7 +76,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // ЛОГИКА ВВОДА И СТЕКА
+    // ВВОД И СТЕК (ИСПРАВЛЕНО)
     // =========================================================
 
     setupInput() {
@@ -96,35 +96,35 @@ export class BattleScene extends Phaser.Scene {
             const leaderCard = gameObject.parentContainer;
             
             if (Date.now() - leaderCard.pressStartTime > 80) {
-                // --- НАСТРОЙКИ ---
-                const gap = 40; // Расстояние между картами
-                const verticalOffset = this.activeStack.length > 1 ? 180 : 60;
+                // --- ЛОГИКА ПОЗИЦИИ ---
+                // Уменьшили подъем (110 вместо 180), чтобы палец был ближе к картам
+                // и попадал в dropZone
+                const verticalOffset = this.activeStack.length > 1 ? 110 : 80;
 
-                // Считаем ширину всего веера
-                const totalFanWidth = (this.activeStack.length - 1) * gap;
+                // Мы двигаем не саму карту, а обновляем её целевую позицию через updateStackVisuals
+                // Но лидер должен следовать за пальцем как "якорь"
+                // Для плавности мы будем обновлять его в updateStackVisuals, 
+                // но здесь зададим "точку притяжения"
+                this.targetPointerX = pointer.x;
+                this.targetPointerY = pointer.y - verticalOffset;
                 
-                // Сдвигаем ЛИДЕРА влево на половину ширины.
-                // Теперь палец указывает ровно в центр группы.
-                leaderCard.x = pointer.x - (totalFanWidth / 2);
-                leaderCard.y = pointer.y - verticalOffset;
-                
-                // --- МАГНИТ (Без изменений) ---
+                // Магнит
                 const lastInStack = this.activeStack[this.activeStack.length - 1];
                 for (let i = this.hand.length - 1; i >= 0; i--) {
                     const otherCard = this.hand[i];
                     if (this.activeStack.includes(otherCard)) continue;
                     
-                    // Увеличил радиус магнита для удобства (140)
                     const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
                     
-                    if (dist < 140) { 
+                    if (dist < 130) { 
                         this.activeStack.push(otherCard);
-                        // Важно: Лидер (0) сверху (слой 100), остальные под ним (99, 98...)
                         otherCard.setDepth(100 - this.activeStack.length); 
-                        
+                        // Эффект подбора
                         this.tweens.add({ targets: otherCard, scale: { from: 1.1, to: 1 }, duration: 100 });
                     }
                 }
+                
+                // Вызываем отрисовку веера
                 this.updateStackVisuals();
             }
         });
@@ -140,6 +140,7 @@ export class BattleScene extends Phaser.Scene {
 
             this.activeStack.forEach(c => c.setDepth(0));
 
+            // Если не попали в зону дропа
             if (!dropped) {
                 this.returnStackToHand();
             }
@@ -170,8 +171,7 @@ export class BattleScene extends Phaser.Scene {
             else if (dropZone.name === "player_target" && this.player.alive) dropTargetUnit = this.player;
 
             if (dropTargetUnit) {
-                const cardsToPlay = [...this.activeStack];
-                this.activeStack = []; 
+                // ЗАПУСК АТАКИ
                 this.playStackSequence(dropTargetUnit);
             } else {
                 this.returnStackToHand();
@@ -179,50 +179,51 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
- // --- ИЗМЕНЕННЫЙ МЕТОД: ВЕЕР (ТЕПЕРЬ КРУТИТ И ПЕРВУЮ КАРТУ) ---
+    // --- ВЕЕР: ТЕПЕРЬ ПЕРВАЯ КАРТА ТОЖЕ ВСТАЕТ В СТРОЙ ---
     updateStackVisuals() {
         if (this.activeStack.length === 0) return;
 
-        const leader = this.activeStack[0];
-        
-        // Настройки веера
-        const gap = 40;       // Отступ по X
-        const angleStep = 10; // Угол поворота (уменьшил, чтобы не было "каши")
-        const arcStrength = 15; // Насколько сильно карты опускаются по краям (Арка)
+        // Якорь - это позиция пальца (с учетом оффсета)
+        // Если targetPointerX еще не задан (первый кадр), берем текущую позицию лидера
+        const anchorX = this.targetPointerX || this.activeStack[0].x;
+        const anchorY = this.targetPointerY || this.activeStack[0].y;
 
-        // Центр веера (индекс середины)
-        const centerIndex = (this.activeStack.length - 1) / 2;
+        const gap = 40;     // Расстояние между картами
+        const angleStep = 10; // Градус поворота
+
+        // Центрируем веер относительно якоря (пальца)
+        const totalWidth = (this.activeStack.length - 1) * gap;
+        const startX = anchorX - (totalWidth / 2);
+
+        // Центрируем угол
+        const centerAngleIndex = (this.activeStack.length - 1) / 2;
 
         for (let i = 0; i < this.activeStack.length; i++) {
             const card = this.activeStack[i];
             
-            // 1. Рассчитываем УГОЛ
-            // (i - center) дает нам: -1.5, -0.5, 0.5, 1.5 и т.д.
-            const targetAngle = (i - centerIndex) * angleStep;
+            // 1. Позиция
+            // Распределяем карты равномерно влево и вправо от центра
+            const targetX = startX + (i * gap);
             
-            // 2. Рассчитываем ПОЗИЦИЮ Y (Арка)
-            // Карты по краям ниже, чем в центре
-            const distFromCenter = Math.abs(i - centerIndex);
-            const offsetY = distFromCenter * arcStrength; 
+            // Дуга: крайние карты чуть ниже
+            const distFromCenter = Math.abs(i - centerAngleIndex);
+            const targetY = anchorY + (distFromCenter * 10); 
 
-            // 3. Рассчитываем ПОЗИЦИЮ X
-            const offsetX = i * gap;
+            // Используем Lerp (плавное следование) для всех карт
+            // Первая карта будет следовать за пальцем чуть быстрее
+            const speed = (i === 0) ? 0.6 : 0.4;
+            
+            card.x += (targetX - card.x) * speed;
+            card.y += (targetY - card.y) * speed;
 
-            // --- ПРИМЕНЯЕМ ---
-            // Угол применяем плавно (для красоты)
+            // 2. Угол
+            // Пример для 3 карт: -10, 0, +10
+            const targetAngle = (i - centerAngleIndex) * angleStep;
             card.angle += (targetAngle - card.angle) * 0.3;
-
-            // Позицию применяем ЖЕСТКО (без интерполяции), чтобы карты не отставали от пальца
-            if (i === 0) {
-                // Лидера по X/Y не трогаем, им управляет setupInput
-            } else {
-                card.x = leader.x + offsetX;
-                card.y = leader.y + offsetY;
-            }
         }
     }
 
-    // --- ИЗМЕНЕННЫЙ МЕТОД: АНИМАЦИЯ АТАКИ ---
+    // --- ПОСЛЕДОВАТЕЛЬНОСТЬ ПРИМЕНЕНИЯ ---
     playStackSequence(target) {
         const stackToPlay = [...this.activeStack];
         this.activeStack = []; 
@@ -230,14 +231,11 @@ export class BattleScene extends Phaser.Scene {
         this.hand = this.hand.filter(c => !stackToPlay.includes(c));
         this.rearrangeHand();
 
-        const stepDelay = Math.max(150, 600 - (stackToPlay.length * 100));
+        const stepDelay = Math.max(100, 500 - (stackToPlay.length * 80));
 
         stackToPlay.forEach((card, index) => {
             card.setDepth(2000 + index);
 
-            // НАСТРОЙКА ПОЗИЦИИ ПЕРЕД УДАРОМ
-            // target.isPlayer ? 220 : -220  ---> Отодвинули дальше (было 100)
-            // target.y - 50                 ---> Чуть выше центра врага
             const hoverX = target.x + (target.isPlayer ? 250 : -250); 
             const hoverY = target.y - 50;
 
@@ -245,19 +243,18 @@ export class BattleScene extends Phaser.Scene {
                 targets: card,
                 x: hoverX, 
                 y: hoverY,
-                scale: 1.3, // Сделали карту чуть крупнее перед ударом
-                angle: (target.isPlayer ? -15 : 15), // Наклонили в сторону врага
+                scale: 1.3,
+                angle: (target.isPlayer ? -15 : 15),
                 duration: 400,
                 delay: index * stepDelay,
                 ease: 'Power2',
                 onComplete: () => {
-                    // УДАР (Резкое движение в центр цели)
                     this.tweens.add({
                         targets: card,
                         x: target.x,
                         y: target.y,
-                        duration: 120, // Быстрый удар
-                        ease: 'Quad.easeIn', // Ускорение
+                        duration: 120,
+                        ease: 'Quad.easeIn',
                         onComplete: () => {
                             this.playCardLogic(card, target);
                         }
@@ -267,10 +264,8 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // Внутренняя логика (без анимаций руки, так как мы их уже убрали)
     playCardLogic(card, target) {
         const computedData = getComputedCard(card.cardInstance);
-        
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
@@ -278,58 +273,36 @@ export class BattleScene extends Phaser.Scene {
                 executeAction(this, action, this.player, finalTarget); 
             }); 
         }
-        
         this.spendMana(computedData.cost);
-        
-        // Отправляем в сброс (с анимацией исчезновения)
         this.discardPile.push(card.cardInstance);
         this.tweens.add({
             targets: card,
-            alpha: 0,
-            scale: 0.5,
-            y: card.y - 50,
-            duration: 300,
+            alpha: 0, scale: 0.5, y: card.y - 50, duration: 300,
             onComplete: () => { card.destroy(); this.updateDeckUI(); }
         });
-        
         this.updateGlobalUI();
     }
 
     // =========================================================
-    // ОБЫЧНЫЕ МЕТОДЫ
+    // ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ
     // =========================================================
-
+    
     returnStackToHand() {
         this.activeStack.forEach(card => {
-            card.setDepth(0);
+            this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 });
         });
         this.activeStack = [];
-        this.rearrangeHand();
     }
 
     discardStack() {
         const cardsToDiscard = [...this.activeStack];
         this.activeStack = [];
-        // Удаляем из руки
         this.hand = this.hand.filter(c => !cardsToDiscard.includes(c));
-        
-        cardsToDiscard.forEach(card => {
-            this.discardPile.push(card.cardInstance);
-            this.tweens.add({
-                targets: card,
-                x: this.trashZone.x, y: this.trashZone.y,
-                alpha: 0, scale: 0.1, duration: 300,
-                onComplete: () => card.destroy()
-            });
-        });
-        this.updateDeckUI();
+        cardsToDiscard.forEach(card => this.discardCard(card));
         this.rearrangeHand();
     }
 
-    // Старый метод playCard переименован и разделен, 
-    // но на случай, если он вызывается откуда-то еще, оставим простую версию
     playCard(card, target) {
-        // Если вдруг вызовется по-старому (не через стек), перенаправляем
         this.activeStack = [card];
         this.playStackSequence(target);
     }
@@ -359,7 +332,6 @@ export class BattleScene extends Phaser.Scene {
         const cardW = 150; const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
         this.hand.forEach((card, index) => {
-            // Если карта в стеке - не трогаем
             if (this.activeStack.includes(card)) return;
             if (card === this.zoomedCard) return;
 
@@ -376,8 +348,13 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
-    // --- ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ ---
-    
+    discardCard(card) {
+        this.discardPile.push(card.cardInstance);
+        this.hand = this.hand.filter(c => c !== card);
+        this.tweens.add({ targets: card, x: this.trashZone.x, y: this.trashZone.y, alpha: 0, scale: 0.1, duration: 300, onComplete: () => { card.destroy(); this.rearrangeHand(); } });
+        this.updateDeckUI();
+    }
+
     spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
     discardHandVisual() { this.hand.forEach(card => card.destroy()); this.hand = []; }
     returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
@@ -391,23 +368,28 @@ export class BattleScene extends Phaser.Scene {
         this.tweens.add({ targets: txt, y: y - 100, alpha: 0, duration: 1500, ease: 'Power2', onComplete: () => txt.destroy() });
     }
 
-    // ... endTurn, handleVictory, handleUnitDeath, createUI ...
-    // (Код этих методов не менялся, но я включу их для целостности)
-
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        if (this.statusManager) this.statusManager.onTurnStart(this.enemy); 
+        if (this.statusManager) {
+            this.statusManager.onTurnStart(this.enemy); 
+        }
         this.enemy.resetShield();
 
         let skipEnemyTurn = false;
-        if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        if (this.statusManager) {
+            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        }
 
-        if (!skipEnemyTurn) this.enemy.executeIntent(this.player);
-        else console.log("Враг заморожен");
+        if (!skipEnemyTurn) {
+            this.enemy.executeIntent(this.player);
+        } else {
+            console.log("Враг заморожен");
+        }
         
         this.updateGlobalUI();
+
         if (!this.player.alive) return;
 
         this.time.delayedCall(1000, () => {
@@ -424,6 +406,7 @@ export class BattleScene extends Phaser.Scene {
             
             this.player.resetShield(); 
             this.enemy.chooseIntent();
+            
             this.mana = this.maxMana; 
             this.updateManaUI();
             
@@ -436,13 +419,14 @@ export class BattleScene extends Phaser.Scene {
     handleUnitDeath(unit) {
         const GW = this.scale.width; const GH = this.scale.height;
         this.updateGlobalUI();
+
         if (unit.isPlayer) {
             this.isBattleActive = false;
             this.cameras.main.flash(500, 255, 0, 0);
             this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
-            this.add.text(GW/2, GH/2 - 50, "YOU DIED", { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
-            const btn = this.add.rectangle(GW/2, GH/2 + 50, 300, 70, 0xffffff).setInteractive().setDepth(2001);
-            this.add.text(GW/2, GH/2 + 50, "RETURN TO MENU", { fontSize: '28px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+            this.add.text(GW/2, GH/2 - 60, "YOU DIED", { fontSize: '80px', color: '#ff0000', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(2001);
+            const btn = this.add.rectangle(GW/2, GH/2 + 60, 300, 70, 0xffffff).setInteractive().setDepth(2001);
+            this.add.text(GW/2, GH/2 + 60, "RETURN TO MENU", { fontSize: '28px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
             btn.on('pointerdown', () => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
@@ -499,6 +483,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     updateGlobalUI() { if (this.player) GameState.currentHp = this.player.hp; this.game.events.emit('UPDATE_UI'); }
+    updateManaUI() { this.manaText.setText(`${this.mana}/${this.maxMana}`); this.updateGlobalUI(); }
+    updateDeckUI() { this.deckText.setText(`Deck: ${this.drawPile.length}`); this.discardText.setText(`${this.discardPile.length}`); }
+    
     createUI(GW, GH) {
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => { if (this.zoomedCard) this.unzoomCard(); else if (this.deckContainer && this.deckContainer.visible) this.closeDeckView(); });
