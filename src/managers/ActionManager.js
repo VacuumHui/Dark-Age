@@ -19,9 +19,6 @@ export const ACTIONS = {
         }
     },
 
-    // ... (Остальные методы: block, heal, apply_status и т.д. остаются без изменений) ...
-    // Для надежности я приведу их кратко, но менять нужно только damage
-    
     block: (scene, action, source, target) => {
         if (target && target.addShield) {
             target.addShield(action.value);
@@ -49,6 +46,20 @@ export const ACTIONS = {
         scene.drawCards(action.value);
         if (target) scene.showFloatingText(target.x, target.y - 80, `Draw +${action.value}`, 0xffffff);
     },
+    
+    // Увеличение Максимальной Маны (Навсегда)
+    increase_max_mana: (scene, action, source, target) => {
+        // Увеличиваем глобальный лимит
+        GameState.maxMana += action.value;
+        
+        // Увеличиваем текущую ману в бою (чтобы эффект был виден сразу)
+        scene.maxMana = GameState.maxMana;
+        scene.mana += action.value; 
+        
+        scene.updateManaUI();
+        scene.ui.showFloatingText(source.x, source.y - 80, `MAX MANA UP!`, 0x00ffff);
+    },
+    
     increase_max_hp: (scene, action, source, target) => {
         GameState.maxHp += action.value;
         GameState.currentHp += action.value;
