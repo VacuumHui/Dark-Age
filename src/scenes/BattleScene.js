@@ -61,6 +61,13 @@ export class BattleScene extends Phaser.Scene {
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
+
+        if (this.player.hp <= 0) {
+            console.warn("Player started with 0 HP! Forcing heal.");
+            this.player.hp = this.player.maxHp;
+            GameState.currentHp = this.player.maxHp;
+        }
+        // ================================
         this.player.updateUI();
         this.add.existing(this.player);
 
