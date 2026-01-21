@@ -15,7 +15,7 @@ export class Card extends Phaser.GameObjects.Container {
         
         this.isZoomed = false;
         
-        // --- РАЗМЕР КАРТЫ (140x200) ---
+        // --- РАЗМЕР КАРТЫ ---
         const w = 140; 
         const h = 200;
         
@@ -29,7 +29,7 @@ export class Card extends Phaser.GameObjects.Container {
         // Фон
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
-        // Арт (Картинка)
+        // Арт
         this.art = scene.add.rectangle(0, -35, 120, 80, baseData.color);
         
         // Заголовок
@@ -42,18 +42,32 @@ export class Card extends Phaser.GameObjects.Container {
             strokeThickness: 2
         }).setOrigin(0.5);
         
-        // Описание
+        // Текст для миниатюры
         let descText = this.cardData.generatedDesc || this.cardData.desc;
         
-        // --- ТЕКСТ ОПИСАНИЯ (УВЕЛИЧЕН) ---
         this.shortDesc = scene.add.text(0, 50, descText, { 
-            fontSize: '15px', // Было 13px
-            color: '#e0e0e0', // Чуть светлее для контраста
+            fontSize: '13px', 
+            color: '#e0e0e0', 
             align: 'center', 
-            fontStyle: 'bold', // Добавил жирность для читаемости
+            fontStyle: 'bold',
             wordWrap: { width: 130 } 
         }).setOrigin(0.5);
         
+        // Текст для ЗУМА (Полное описание из базы + бонусы)
+        // Собираем полный текст: Художественное описание + Техническое
+        let fullTextContent = baseData.fullDesc || baseData.desc;
+        if (this.cardData.generatedDesc !== baseData.desc) {
+             // Если есть зачарования, добавляем тех. описание бонусов
+             fullTextContent += "\n\n" + this.cardData.generatedDesc;
+        }
+
+        this.fullDesc = scene.add.text(0, 30, fullTextContent, { 
+            fontSize: '18px', // Базовый размер для зума
+            color: '#fff', 
+            align: 'center', 
+            wordWrap: { width: 160 } 
+        }).setOrigin(0.5).setVisible(false);
+
         // Мана
         this.costCircle = scene.add.circle(-60, -90, 16, 0x00ffff);
         
@@ -61,18 +75,8 @@ export class Card extends Phaser.GameObjects.Container {
         if (this.cardData.cost < baseData.cost) costColor = '#008800'; 
         
         this.costText = scene.add.text(-60, -90, this.cardData.cost, { 
-            fontSize: '20px', 
-            color: costColor, 
-            fontStyle: 'bold' 
+            fontSize: '20px', color: costColor, fontStyle: 'bold' 
         }).setOrigin(0.5);
-        
-        // Полное описание (ДЛЯ ЗУМА - СТАЛО ОГРОМНЫМ)
-        this.fullDesc = scene.add.text(0, 60, descText, { 
-            fontSize: '22px', // Было 16px
-            color: '#fff', 
-            align: 'center', 
-            wordWrap: { width: 130 } 
-        }).setOrigin(0.5).setVisible(false);
 
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
 
@@ -100,11 +104,25 @@ export class Card extends Phaser.GameObjects.Container {
         if (this.cardInstance.enchants.length > 0) strokeColor = 0xff00ff;
 
         if (isZoomed) { 
-            this.shortDesc.setVisible(false); 
+            this.shortDesc.setVisible(false);
+            this.art.setVisible(false); // Скрываем картинку, чтобы было больше места для текста
+            
             this.fullDesc.setVisible(true); 
+            
+            // --- ДИНАМИЧЕСКИЙ РАЗМЕР ШРИФТА ---
+            // Если текст очень длинный (> 100 символов), уменьшаем шрифт
+            if (this.fullDesc.text.length > 100) {
+                this.fullDesc.setFontSize(14);
+            } else if (this.fullDesc.text.length > 50) {
+                this.fullDesc.setFontSize(16);
+            } else {
+                this.fullDesc.setFontSize(20);
+            }
+            
             this.bg.setStrokeStyle(3, 0x00ffff); 
         } else { 
             this.shortDesc.setVisible(true); 
+            this.art.setVisible(true);
             this.fullDesc.setVisible(false); 
             this.bg.setStrokeStyle(2, strokeColor); 
         }
