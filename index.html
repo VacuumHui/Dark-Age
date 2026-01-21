@@ -2,84 +2,53 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Настройка viewport для мобилок (без зума, на весь экран) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Roguelite</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- Подключаем только сам движок Phaser -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    
-    <!-- Остальные скрипты (карты, враги) подгрузятся автоматически через main.js -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <!-- ТЕХНИЧЕСКИЙ ЭКРАН СТАРТА -->
-    <!-- Нужен только для активации полного экрана по клику -->
     <div id="start-screen">
         <h2 style="color: #666; margin-bottom: 20px; font-family: monospace;">SYSTEM READY</h2>
         <button id="start-btn">TAP TO ENTER FULLSCREEN</button>
     </div>
 
-    <!-- ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ -->
     <div id="rotate-message">
         <div class="rotate-icon">📱 ⤵️</div>
         <h2>PLEASE ROTATE DEVICE</h2>
         <p>Landscape mode required</p>
     </div>
 
-    <!-- ТОЧКА ВХОДА В ИГРУ -->
     <script type="module" src="src/main.js"></script>
 
-    <!-- СКРИПТ ПОЛНОГО ЭКРАНА -->
+    <!-- ИСПРАВЛЕННЫЙ СКРИПТ ВХОДА -->
     <script>
         const startScreen = document.getElementById('start-screen');
         const startBtn = document.getElementById('start-btn');
 
-        startBtn.addEventListener('click', async () => {
-            // 1. Попытка включить полный экран
-            try {
-                if (document.documentElement.requestFullscreen) {
-                    await document.documentElement.requestFullscreen();
-                } else if (document.documentElement.webkitRequestFullscreen) {
-                    await document.documentElement.webkitRequestFullscreen();
-                }
-            } catch (err) {
-                console.log("Full screen denied:", err);
-            }
-
-            // 2. Попытка заблокировать ориентацию (Android)
-            try {
-                if (screen.orientation && screen.orientation.lock) {
-                    await screen.orientation.lock("landscape");
-                }
-            } catch (err) {
-                console.log("Orientation lock not supported");
-            }
-
-            // 3. Скрываем HTML кнопку -> Видим игру (Phaser)
+        startBtn.addEventListener('click', () => {
+            // 1. СРАЗУ скрываем кнопку. Не ждем ни секунды.
             startScreen.style.display = 'none';
+
+            // 2. Запускаем полный экран (без await)
+            const docEl = document.documentElement;
+            if (docEl.requestFullscreen) {
+                docEl.requestFullscreen().catch(err => console.log("FS Error:", err));
+            } else if (docEl.webkitRequestFullscreen) {
+                docEl.webkitRequestFullscreen(); // Для Айфонов
+            }
+
+            // 3. Блокируем ориентацию (если можно)
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock("landscape").catch(() => {});
+            }
         });
     </script>
 
-    
-<!-- ЛОВУШКА ОШИБОК 2.0 -->
-    <div id="debug-console" style="
-        display: none;
-        position: fixed; 
-        top: 0; 
-        left: 0; 
-        width: 100%; 
-        height: 50%; 
-        background: rgba(0,0,0,0.9); 
-        color: #ff5555; 
-        z-index: 99999; 
-        font-family: monospace; 
-        font-size: 12px; 
-        padding: 10px; 
-        overflow: scroll; 
-        word-wrap: break-word;
-        pointer-events: auto;">
+    <!-- ОСТАВЛЯЕМ КОНСОЛЬ ОШИБОК (Она не мешает) -->
+    <div id="debug-console" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 50%; background: rgba(0,0,0,0.9); color: #ff5555; z-index: 99999; font-family: monospace; font-size: 12px; padding: 10px; overflow: scroll; pointer-events: auto;">
         <button onclick="this.parentNode.style.display='none'" style="float: right; font-size: 20px;">❌</button>
         <h3>DEBUG CONSOLE</h3>
     </div>
@@ -87,28 +56,13 @@
     <script>
         function logError(title, detail) {
             const consoleDiv = document.getElementById('debug-console');
-            consoleDiv.style.display = 'block'; // Показываем консоль при ошибке
-            consoleDiv.innerHTML += `<div style="border-bottom: 1px solid #555; margin-bottom: 10px;">
-                <strong>${title}</strong><br>
-                ${detail}
-            </div>`;
+            consoleDiv.style.display = 'block';
+            consoleDiv.innerHTML += `<div style="border-bottom: 1px solid #555; margin-bottom: 10px;"><strong>${title}</strong><br>${detail}</div>`;
         }
-
-        // 1. Обычные ошибки JS
         window.onerror = function(message, source, lineno, colno, error) {
-            let stack = error ? error.stack : 'No stack trace';
+            let stack = error ? error.stack : 'No stack';
             logError("JS ERROR", `${message}<br>File: ${source}:${lineno}<br><pre>${stack}</pre>`);
-            return false;
         };
-        
-        // 2. Ошибки загрузки файлов (404)
-        window.addEventListener('error', (event) => {
-            if (event.target.tagName === 'SCRIPT' || event.target.tagName === 'IMG') {
-                logError("LOADING ERROR", `Failed to load: ${event.target.src}`);
-            }
-        }, true);
-
-        // 3. Асинхронные ошибки (Promise Rejection) - ОЧЕНЬ ВАЖНО для Phaser
         window.addEventListener('unhandledrejection', (event) => {
             logError("PROMISE REJECTION", `<pre>${event.reason ? event.reason.stack : event.reason}</pre>`);
         });
