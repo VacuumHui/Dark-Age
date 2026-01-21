@@ -44,7 +44,9 @@ export const GameState = {
     reset: function() {
         this.deck = [
             createCardInstance("strike"), createCardInstance("strike"), createCardInstance("dirty_trick"),
-            createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
+            createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend"), 
+            createCardInstance("iron_barrier"), createCardInstance("spiked_armor"),
+            
         ];
         this.relics = [];
         this.maxHp = INITIAL_STATE.maxHp;
