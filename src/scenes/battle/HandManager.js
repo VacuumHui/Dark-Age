@@ -36,7 +36,6 @@ export class HandManager {
             }
 
             const cardInstance = this.drawPile.pop();
-            // Создаем карту через сцену
             const card = new Card(this.scene, GW/2, this.scene.scale.height + 200, cardInstance);
             this.scene.add.existing(card);
             this.hand.push(card);
