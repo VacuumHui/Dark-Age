@@ -124,6 +124,7 @@ export class HandManager {
 
         this.scene.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.scene.isBattleActive) return;
+            if (this.scene.zoomedCard) return; 
             const leaderCard = gameObject.parentContainer;
             
             if (Date.now() - leaderCard.pressStartTime > 80) {
