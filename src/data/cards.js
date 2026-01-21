@@ -8,10 +8,10 @@ export const CARDS_DB = {
         rarity: "common", 
         target: "enemy", // Главная цель - враг
         color: 0xaa0000, 
-        desc: "6 урона", 
-        fullDesc: "Базовая атака.\nНаносит 6 единиц урона.",
+        desc: "4 урона", 
+        fullDesc: "Базовая атака.\nНаносит 4 единиц урона.",
         actions: [ 
-            { type: "damage", value: 6 } // Бьет главную цель (врага)
+            { type: "damage", value: 4 } // Бьет главную цель (врага)
         ]
     },
     
@@ -34,10 +34,10 @@ export const CARDS_DB = {
         rarity: "common", 
         target: "enemy", 
         color: 0x880000, 
-        desc: "12 урона", 
+        desc: "10 урона", 
         fullDesc: "Медленный, но мощный удар.",
         actions: [ 
-            { type: "damage", value: 12 } 
+            { type: "damage", value: 10} 
         ]
     },
 
@@ -71,7 +71,7 @@ export const CARDS_DB = {
 
     "dirty_trick": {
         name: "Грязный приём",
-        cost: 1,
+        cost: 2,
         rarity: "common",
         target: "enemy",
         color: 0x444444, // Темно-серый
@@ -83,6 +83,32 @@ export const CARDS_DB = {
         ]
     },
 
+    "iron_barrier": {
+        name: "Железная завеса",
+        cost: 4,
+        rarity: "common",
+        target: "self",
+        color: 0x003366,
+        desc: "15 блока",
+        fullDesc: "Тяжелая защита.\nДает много блока, но стоит дорого.",
+        actions: [ { type: "block", value: 15 } ]
+    },
+
+    "spiked_armor": {
+        name: "Шипастая броня",
+        cost: 2,
+        rarity: "rare",
+        target: "self",
+        color: 0x225522,
+        desc: "5 Блока\n3 Шипов",
+        fullDesc: "Враг пожалеет, что тронул вас.\nШипы наносят урон атакующему.",
+        actions: [
+            { type: "block", value: 5 },
+            { type: "apply_status", status: "thorns", value: 3 }
+        ]
+    },
+
+    
     // --- ЛЕГЕНДАРНЫЕ (LEGENDARY) ---
     "vampirism": {
         name: "Укус", 
