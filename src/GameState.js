@@ -1,6 +1,5 @@
 // Файл: src/GameState.js
 
-// Функция создания карты (для использования в других местах)
 export function createCardInstance(cardId) {
     return {
         id: cardId,
@@ -9,11 +8,11 @@ export function createCardInstance(cardId) {
     };
 }
 
-// Начальные значения (Константа, чтобы не потерять)
 const INITIAL_STATE = {
     maxHp: 50,
     currentHp: 50,
     gold: 100,
+    maxMana: 3, // <--- ДОБАВИЛИ БАЗОВУЮ МАНУ
     level: 1,
     act: 1,
     relics: []
@@ -22,9 +21,12 @@ const INITIAL_STATE = {
 export const GameState = {
     deck: [],
     relics: [],
+    
     maxHp: 50,
     currentHp: 50,
     gold: 100,
+    
+    maxMana: 3, // <--- ТЕКУЩИЙ ЛИМИТ МАНЫ
     
     mapData: null,
     currentFloor: 0,
@@ -40,18 +42,16 @@ export const GameState = {
         3: "boss_slime"
     },
 
-    // ФУНКЦИЯ ПОЛНОГО СБРОСА
     reset: function() {
         this.deck = [
-            createCardInstance("strike"), createCardInstance("strike"), createCardInstance("dirty_trick"),
-            createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend"), 
-            createCardInstance("iron_barrier"), createCardInstance("spiked_armor"),
-            
+            createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
+            createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
         ];
         this.relics = [];
         this.maxHp = INITIAL_STATE.maxHp;
         this.currentHp = INITIAL_STATE.currentHp;
         this.gold = INITIAL_STATE.gold;
+        this.maxMana = INITIAL_STATE.maxMana; // Сбрасываем ману при рестарте
         this.level = INITIAL_STATE.level;
         this.act = INITIAL_STATE.act;
         
