@@ -46,18 +46,37 @@ export class MenuScene extends Phaser.Scene {
         return bg;
     }
 
+    // Вспомогательная функция для создания карт
+    _createCard(id) {
+        return { id: id, uid: Date.now() + Math.random(), enchants: [] };
+    }
+
     startNewGame() {
-        try {
-            console.log("Resetting GameState...");
-            
-            // 1. ИСПОЛЬЗУЕМ ВСТРОЕННЫЙ СБРОС (Чисто и безопасно)
-            GameState.reset();
+        console.log("HARD RESET INITIATED");
 
-            console.log("Starting MapScene...");
-            this.scene.start('MapScene');
+        // 1. Сбрасываем Глобальное Состояние ВРУЧНУЮ
+        // Это гарантирует, что 0 ХП превратится в 50
+        GameState.maxHp = 50;
+        GameState.currentHp = 50; // <--- ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ
+        GameState.gold = 100;
+        GameState.maxMana = 3;
+        GameState.level = 1;
+        GameState.act = 1;
+        GameState.relics = [];
+        
+        // 2. Сбрасываем колоду
+        GameState.deck = [
+            this._createCard("strike"), this._createCard("strike"), this._createCard("strike"),
+            this._createCard("defend"), this._createCard("defend"), this._createCard("defend")
+        ];
 
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-        }
+        // 3. Сбрасываем Карту
+        GameState.mapData = null;
+        GameState.mapGenerated = false;
+        GameState.currentFloor = 0;
+        GameState.currentNode = null;
+
+        // 4. Запускаем
+        this.scene.start('MapScene');
     }
 }
