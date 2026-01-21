@@ -43,7 +43,7 @@ export const GameState = {
     // ФУНКЦИЯ ПОЛНОГО СБРОСА
     reset: function() {
         this.deck = [
-            createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
+            createCardInstance("strike"), createCardInstance("strike"), createCardInstance("dirty_trick"),
             createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
         ];
         this.relics = [];
