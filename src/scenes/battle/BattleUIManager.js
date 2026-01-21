@@ -47,7 +47,6 @@ export class BattleUIManager {
             .setInteractive().setStrokeStyle(2, 0x888888);
         this.deckText = this.scene.add.text(deckBtnX, deckBtnY, `Deck: 0`, { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         
-        // ВАЖНО: Вызываем метод СЦЕНЫ, который потом вызовет метод UI
         deckBtn.on('pointerdown', () => this.scene.openDeckView());
 
         // Сброс
@@ -74,14 +73,17 @@ export class BattleUIManager {
         const GH = this.scene.scale.height;
 
         if (!this.deckContainer) {
+            // Используем this.scene.add
             this.deckContainer = this.scene.add.container(0, 0).setDepth(3000).setScrollFactor(0);
         }
         
         this.deckContainer.removeAll(true);
         this.deckContainer.setVisible(true);
         
-        // Включаем затемнение (через сцену)
-        this.scene.dimmer.setDepth(2999).setVisible(true);
+        // Включаем затемнение
+        if (this.scene.dimmer) {
+            this.scene.dimmer.setDepth(2999).setVisible(true);
+        }
 
         const title = this.scene.add.text(GW/2, 50, `FULL DECK (${GameState.deck.length})`, { 
             fontSize: '40px', fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 4 
@@ -99,41 +101,39 @@ export class BattleUIManager {
             const x = startX + (col * gapX);
             const y = startY + (row * gapY);
 
-            // Создаем визуальную копию карты
             const card = new Card(this.scene, x, y, cardInstance);
-            this.scene.input.setDraggable(card.bg, false); // Драгать нельзя
+            this.scene.input.setDraggable(card.bg, false); 
             this.deckContainer.add(card);
         });
 
-        const closeBtn = this.scene.add.text(GW/2, GH - 80, "[ CLOSE VIEW ]", { 
-            fontSize: '30px', color: '#ff5555', fontStyle: 'bold', backgroundColor: '#000' 
-        }).setOrigin(0.5).setInteractive();
-        // Рисуем кнопку (Фон)
-        const closeBtnBg = this.add.rectangle(GW/2, GH - 80, 200, 60, 0x990000)
+        // --- ВОТ ЗДЕСЬ БЫЛА ОШИБКА ---
+        // Было: this.add.rectangle (Ошибка!)
+        // Стало: this.scene.add.rectangle (Правильно!)
+        
+        const closeBtnBg = this.scene.add.rectangle(GW/2, GH - 80, 200, 60, 0x990000)
             .setStrokeStyle(2, 0xffffff)
             .setInteractive();
 
-        // Рисуем текст на кнопке
-        const closeBtnText = this.add.text(GW/2, GH - 80, "CLOSE", { 
+        const closeBtnText = this.scene.add.text(GW/2, GH - 80, "CLOSE", { 
             fontSize: '24px', fontStyle: 'bold', color: '#ffffff' 
         }).setOrigin(0.5);
 
-        // Логика нажатия и анимация
         closeBtnBg.on('pointerover', () => closeBtnBg.setScale(1.05));
         closeBtnBg.on('pointerout', () => closeBtnBg.setScale(1));
+        
+        // Кнопка закрытия вызывает метод закрытия
         closeBtnBg.on('pointerdown', () => this.closeDeckView());
 
-        // Добавляем в контейнер
         this.deckContainer.add([closeBtnBg, closeBtnText]);
-        
-        // ---------------------------
     }
 
     closeDeckView() {
         if (this.deckContainer) {
             this.deckContainer.setVisible(false);
         }
-        this.scene.dimmer.setVisible(false);
+        if (this.scene.dimmer) {
+            this.scene.dimmer.setVisible(false);
+        }
         this.scene.unzoomCard();
     }
 
@@ -156,17 +156,21 @@ export class BattleUIManager {
     showDefeatScreen(onRestart) {
         const GW = this.scene.scale.width;
         const GH = this.scene.scale.height;
+
         this.scene.cameras.main.flash(500, 255, 0, 0);
         this.scene.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.8).setDepth(2000);
-        this.scene.add.text(GW/2, GH/2 - 60, "YOU DIED", { fontSize: '80px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+        this.scene.add.text(GW/2, GH/2 - 60, "YOU DIED", { fontSize: '80px', color: '#ff0000', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(2001);
+        
         const btn = this.scene.add.rectangle(GW/2, GH/2 + 60, 300, 70, 0xffffff).setInteractive().setDepth(2001);
-        this.scene.add.text(GW/2, GH/2 + 60, "RETURN TO MENU", { fontSize: '28px', color: '#000' }).setOrigin(0.5).setDepth(2001);
+        this.scene.add.text(GW/2, GH/2 + 60, "RETURN TO MENU", { fontSize: '28px', color: '#000', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
+        
         btn.on('pointerdown', onRestart);
     }
 
     showVictoryScreen(rewardKeys, onCardSelect, onSkip) {
         const GW = this.scene.scale.width;
         const GH = this.scene.scale.height;
+
         this.scene.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.9).setDepth(2000).setInteractive();
         this.scene.add.text(GW/2, 100, "VICTORY! CHOOSE A CARD:", { fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setDepth(2001);
 
@@ -181,14 +185,16 @@ export class BattleUIManager {
             card.bg.removeAllListeners('pointerup');
         });
         
-        const skipBtn = this.scene.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' }).setOrigin(0.5).setDepth(2001).setInteractive();
+        const skipBtn = this.scene.add.text(GW/2, GH - 100, "[ Skip Reward ]", { fontSize: '20px', color: '#666' })
+            .setOrigin(0.5).setDepth(2001).setInteractive();
         skipBtn.on('pointerdown', onSkip);
     }
 
     showActClearScreen(actNumber, onNextAct) {
-        const GW = this.scene.scale.width; const GH = this.scene.scale.height;
+        const GW = this.scene.scale.width;
+        const GH = this.scene.scale.height;
         this.scene.add.rectangle(GW/2, GH/2, GW, GH, 0x110000, 0.95).setDepth(3000).setInteractive();
-        this.scene.add.text(GW/2, GH/2 - 100, `ACT ${actNumber} CLEARED!`, { fontSize: '60px', fontStyle: 'bold', color: '#ffaa00' }).setOrigin(0.5).setDepth(3001);
+        this.scene.add.text(GW/2, GH/2 - 100, `ACT ${actNumber} CLEARED!`, { fontSize: '60px', fontStyle: 'bold', color: '#ffaa00', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(3001);
         const nextBtn = this.scene.add.text(GW/2, GH/2 + 50, "[ ENTER NEXT ACT ]", { fontSize: '40px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(3001).setInteractive();
         nextBtn.on('pointerdown', onNextAct);
     }
