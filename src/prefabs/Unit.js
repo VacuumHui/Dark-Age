@@ -38,7 +38,6 @@ export class Unit extends Phaser.GameObjects.Container {
         this.shieldText = scene.add.text(0, 0, "", { fontSize: '24px', color: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
         
         this.statusText = scene.add.text(0, -95, "", { fontSize: '14px', color: '#ffff00', fontStyle: 'bold' }).setOrigin(0.5);
-
         this.intentIcon = scene.add.text(0, -120, "", { fontSize: '24px' }).setOrigin(0.5);
         this.intentValue = scene.add.text(20, -120, "", { fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setOrigin(0.5);
 
@@ -62,20 +61,16 @@ export class Unit extends Phaser.GameObjects.Container {
         this.statusText.setText(text);
     }
 
-    // --- ИСПРАВЛЕННЫЙ МЕТОД ПОЛУЧЕНИЯ УРОНА ---
-    // Добавили "source = null" в скобки!
     takeDamage(amount, source = null) {
         if (!this.alive) return;
         
-        // Логика Шипов: Если есть шипы И есть атакующий И атакующий не я сам
         if (this.statuses['thorns'] && source && source !== this) {
             const thornsDmg = this.statuses['thorns'];
-            this.scene.showFloatingText(this.x, this.y - 120, "THORNS!", 0x228822);
-            // Возвращаем урон (передаем null, чтобы шипы не триггерили шипы бесконечно)
+            // ИСПРАВЛЕНО: this.scene.ui.showFloatingText
+            this.scene.ui.showFloatingText(this.x, this.y - 120, "THORNS!", 0x228822);
             source.takeDamage(thornsDmg, null);
         }
 
-        // Ярость
         if (this.scene.statusManager) {
             this.scene.statusManager.onTakeDamage(this, amount);
         }
@@ -91,10 +86,12 @@ export class Unit extends Phaser.GameObjects.Container {
         this.updateUI();
         
         if (damage > 0) {
-            this.scene.showFloatingText(this.x, this.y - 40, `-${damage}`, 0xff0000);
+            // ИСПРАВЛЕНО: Обращаемся к UI менеджеру
+            this.scene.ui.showFloatingText(this.x, this.y - 40, `-${damage}`, 0xff0000);
             this.scene.cameras.main.shake(100, 0.005);
         } else {
-            this.scene.showFloatingText(this.x, this.y - 40, `Blocked`, 0xaaaaff);
+            // ИСПРАВЛЕНО
+            this.scene.ui.showFloatingText(this.x, this.y - 40, `Blocked`, 0xaaaaff);
         }
     }
 
@@ -108,11 +105,13 @@ export class Unit extends Phaser.GameObjects.Container {
     heal(amount) { 
         if(!this.alive) return;
         this.hp += amount; if(this.hp > this.maxHp) this.hp = this.maxHp; 
-        this.updateUI(); this.scene.showFloatingText(this.x, this.y - 40, `+${amount}`, 0x00ff00); 
+        // ИСПРАВЛЕНО
+        this.updateUI(); this.scene.ui.showFloatingText(this.x, this.y - 40, `+${amount}`, 0x00ff00); 
     }
     addShield(amount) { 
         if(!this.alive) return;
-        this.shield += amount; this.updateUI(); this.scene.showFloatingText(this.x, this.y - 40, `+${amount} Shield`, 0x00ffff); 
+        // ИСПРАВЛЕНО
+        this.shield += amount; this.updateUI(); this.scene.ui.showFloatingText(this.x, this.y - 40, `+${amount} Shield`, 0x00ffff); 
     }
     resetShield() { this.shield = 0; this.updateUI(); }
     updateUI() {
@@ -122,8 +121,6 @@ export class Unit extends Phaser.GameObjects.Container {
         else { this.shieldText.setText(""); this.sprite.setStrokeStyle(2, 0xffffff); }
         this.updateStatusUI(); 
     }
-
-    // --- AI ---
     
     chooseIntent() {
         if (this.isPlayer || !this.alive) return;
@@ -182,7 +179,8 @@ export class Unit extends Phaser.GameObjects.Container {
         if (!this.currentIntent || !this.alive) return;
         
         const move = this.currentIntent;
-        this.scene.showFloatingText(this.x, this.y - 60, move.name, 0xffaa00);
+        // ИСПРАВЛЕНО
+        this.scene.ui.showFloatingText(this.x, this.y - 60, move.name, 0xffaa00);
         
         let hasAttacked = false;
 
