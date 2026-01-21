@@ -150,9 +150,11 @@ export class BattleScene extends Phaser.Scene {
     discardCard(card) {
         this.discardPile.push(card.cardInstance);
         this.hand = this.hand.filter(c => c !== card);
+        
         this.tweens.add({ 
             targets: card, 
-            x: this.trashZone.x, y: this.trashZone.y, 
+            x: this.ui.trashZone.x, 
+            y: this.ui.trashZone.y, 
             alpha: 0, scale: 0.1, duration: 300, 
             onComplete: () => { card.destroy(); this.rearrangeHand(); } 
         });
