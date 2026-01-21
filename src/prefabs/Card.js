@@ -68,7 +68,7 @@ export class Card extends Phaser.GameObjects.Container {
         }
 
         this.fullDesc = scene.add.text(0, 20, fullTextContent, { 
-            fontSize: '10px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
+            fontSize: '12px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
             color: '#e0e0e0', 
             align: 'center', 
             wordWrap: { width: 130 } // Ширина переноса
