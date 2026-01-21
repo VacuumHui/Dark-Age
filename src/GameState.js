@@ -44,7 +44,7 @@ export const GameState = {
 
     reset: function() {
         this.deck = [
-            createCardInstance("strike"), createCardInstance("strike"), createCardInstance("strike"),
+            createCardInstance("mana_crystal"), createCardInstance("mana_crystal"), createCardInstance("strike"),
             createCardInstance("defend"), createCardInstance("defend"), createCardInstance("defend")
         ];
         this.relics = [];
