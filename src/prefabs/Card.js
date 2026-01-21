@@ -15,7 +15,7 @@ export class Card extends Phaser.GameObjects.Container {
         
         this.isZoomed = false;
         
-        // --- РАЗМЕР КАРТЫ ---
+        // --- 1. РАЗМЕР КАРТЫ ---
         const w = 140; 
         const h = 200;
         
@@ -29,20 +29,24 @@ export class Card extends Phaser.GameObjects.Container {
         // Фон
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
-        // Арт
+        // --- 2. АРТ (КАРТИНКА) ---
+        // Координаты: центр -35. Высота 80.
+        // Занимает место от Y=-75 до Y=+5.
         this.art = scene.add.rectangle(0, -35, 120, 80, baseData.color);
         
-        // Заголовок
-        this.title = scene.add.text(0, -90, this.cardData.name, { 
-            fontSize: '16px', 
+        // --- 3. ЗАГОЛОВОК (СДВИНУТ ВПРАВО) ---
+        // Сдвигаем X на +15, чтобы не наезжал на ману слева
+        this.title = scene.add.text(15, -90, this.cardData.name, { 
+            fontSize: '15px', // Чуть меньше, чтобы влезало
             fontStyle: 'bold',
             align: 'center',
             color: '#ffffff',
             stroke: '#000',
-            strokeThickness: 2
+            strokeThickness: 2,
+            wordWrap: { width: 100 } // Если название супер-длинное, перенесется
         }).setOrigin(0.5);
         
-        // Текст для миниатюры
+        // Описание (Миниатюра)
         let descText = this.cardData.generatedDesc || this.cardData.desc;
         
         this.shortDesc = scene.add.text(0, 50, descText, { 
@@ -50,33 +54,36 @@ export class Card extends Phaser.GameObjects.Container {
             color: '#e0e0e0', 
             align: 'center', 
             fontStyle: 'bold',
-            wordWrap: { width: 130 } 
+            wordWrap: { width: 120 } // Отступ по 10px с краев
         }).setOrigin(0.5);
         
-        // Текст для ЗУМА (Полное описание из базы + бонусы)
-        // Собираем полный текст: Художественное описание + Техническое
-        let fullTextContent = baseData.fullDesc || baseData.desc;
-        if (this.cardData.generatedDesc !== baseData.desc) {
-             // Если есть зачарования, добавляем тех. описание бонусов
-             fullTextContent += "\n\n" + this.cardData.generatedDesc;
-        }
-
-        this.fullDesc = scene.add.text(0, 30, fullTextContent, { 
-            fontSize: '18px', // Базовый размер для зума
-            color: '#fff', 
-            align: 'center', 
-            wordWrap: { width: 160 } 
-        }).setOrigin(0.5).setVisible(false);
-
-        // Мана
+        // Мана (Левый верхний угол)
         this.costCircle = scene.add.circle(-60, -90, 16, 0x00ffff);
         
         let costColor = '#000';
         if (this.cardData.cost < baseData.cost) costColor = '#008800'; 
         
         this.costText = scene.add.text(-60, -90, this.cardData.cost, { 
-            fontSize: '20px', color: costColor, fontStyle: 'bold' 
+            fontSize: '20px', 
+            color: costColor, 
+            fontStyle: 'bold' 
         }).setOrigin(0.5);
+        
+        // --- 4. ПОЛНОЕ ОПИСАНИЕ (ДЛЯ ЗУМА) ---
+        // Собираем текст
+        let fullTextContent = baseData.fullDesc || baseData.desc;
+        if (this.cardData.generatedDesc !== baseData.desc) {
+             fullTextContent += "\n\n" + this.cardData.generatedDesc;
+        }
+
+        // Y = 55 (Начинается сразу под картинкой)
+        // wordWrap = 125 (Чтобы точно не вылезало за 140px)
+        this.fullDesc = scene.add.text(0, 55, fullTextContent, { 
+            fontSize: '14px', // Базовый размер
+            color: '#fff', 
+            align: 'center', 
+            wordWrap: { width: 125 } 
+        }).setOrigin(0.5, 0).setVisible(false); // Origin 0.5, 0 (Центр по X, Верх по Y)
 
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
 
@@ -105,18 +112,20 @@ export class Card extends Phaser.GameObjects.Container {
 
         if (isZoomed) { 
             this.shortDesc.setVisible(false);
-            this.art.setVisible(false); // Скрываем картинку, чтобы было больше места для текста
+            
+            // ИСПРАВЛЕНИЕ: Мы БОЛЬШЕ НЕ СКРЫВАЕМ this.art
+            // this.art.setVisible(false); <--- УДАЛИЛИ ЭТО
             
             this.fullDesc.setVisible(true); 
             
-            // --- ДИНАМИЧЕСКИЙ РАЗМЕР ШРИФТА ---
-            // Если текст очень длинный (> 100 символов), уменьшаем шрифт
+            // Динамический размер шрифта для полного описания
+            // Если текст огромный, делаем шрифт мельче, чтобы влезло в нижнюю половину карты
             if (this.fullDesc.text.length > 100) {
-                this.fullDesc.setFontSize(14);
-            } else if (this.fullDesc.text.length > 50) {
-                this.fullDesc.setFontSize(16);
+                this.fullDesc.setFontSize(10);
+            } else if (this.fullDesc.text.length > 60) {
+                this.fullDesc.setFontSize(12);
             } else {
-                this.fullDesc.setFontSize(20);
+                this.fullDesc.setFontSize(14);
             }
             
             this.bg.setStrokeStyle(3, 0x00ffff); 
