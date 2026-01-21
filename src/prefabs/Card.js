@@ -15,7 +15,7 @@ export class Card extends Phaser.GameObjects.Container {
         
         this.isZoomed = false;
         
-        // --- РАЗМЕР КАРТЫ ---
+        // --- 1. РАЗМЕР КАРТЫ ---
         const w = 140; 
         const h = 200;
         
@@ -30,12 +30,13 @@ export class Card extends Phaser.GameObjects.Container {
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
         // Арт (Картинка)
-        // Y=-40, Высота 80 (занимает от -80 до 0)
-        this.art = scene.add.rectangle(0, -40, 120, 80, baseData.color);
+        // Чуть меньше и выше, чтобы дать место тексту
+        this.art = scene.add.rectangle(0, -50, 120, 70, baseData.color);
         
-        // Заголовок
-        this.title = scene.add.text(15, -90, this.cardData.name, { 
-            fontSize: '15px', 
+        // --- ЗАГОЛОВОК ---
+        // Опустили ниже (-80), чтобы не прилипал к краю карты
+        this.title = scene.add.text(15, -85, this.cardData.name, { 
+            fontSize: '14px', 
             fontStyle: 'bold',
             align: 'right',
             color: '#ffffff',
@@ -44,47 +45,45 @@ export class Card extends Phaser.GameObjects.Container {
             wordWrap: { width: 95 } 
         }).setOrigin(0.5);
         
-        // --- ОПИСАНИЕ НА МИНИАТЮРЕ (ИСПРАВЛЕНО) ---
+        // --- ТЕКСТ НА МИНИАТЮРЕ (КРУПНЫЙ) ---
+        // Этот текст виден, когда карта маленькая в руке.
         let descText = this.cardData.generatedDesc || this.cardData.desc;
         
-        // Рассчитываем размер шрифта в зависимости от длины текста
-        let miniFontSize = '16px'; // Стандартный крупный
-        if (descText.length > 50) miniFontSize = '14px'; // Если много текста - чуть меньше
-        if (descText.length > 80) miniFontSize = '12px'; // Если очень много - еще меньше
-
-        // Y=25: Начинаем писать сразу под картинкой (картинка кончается в 0)
-        this.shortDesc = scene.add.text(0, 25, descText, { 
-            fontSize: miniFontSize, 
-            color: '#ffffff',  // Чисто белый для контраста
+        this.shortDesc = scene.add.text(0, 30, descText, { 
+            fontSize: '14px', // Крупно, чтобы видно было на телефоне
+            color: '#ffffff', 
             align: 'center', 
-            fontStyle: 'bold', // ЖИРНЫЙ, чтобы читалось
-            wordWrap: { width: 130 },
-            stroke: '#000000', // Легкая обводка для читаемости на темном фоне
-            strokeThickness: 2
-        }).setOrigin(0.5, 0); // Origin сверху, чтобы текст рос вниз
+            fontStyle: 'bold',
+            stroke: '#000',
+            strokeThickness: 2,
+            wordWrap: { width: 130 } 
+        }).setOrigin(0.5, 0); // Растет вниз от центра
         
-        // Мана
-        this.costCircle = scene.add.circle(-60, -90, 18, 0x00ffff); // Чуть больше кружок
+        // --- ТЕКСТ ПРИ ЗУМЕ (МЕЛКИЙ БАЗОВЫЙ) ---
+        // ВАЖНО: Когда карта зумится (x2.5), этот шрифт умножится на 2.5.
+        // 8px превратится в 20px на экране. Это то, что нам нужно.
         
-        let costColor = '#000';
-        if (this.cardData.cost < baseData.cost) costColor = '#008800'; 
-        
-        this.costText = scene.add.text(-60, -90, this.cardData.cost, { 
-            fontSize: '22px', color: costColor, fontStyle: 'bold' 
-        }).setOrigin(0.5);
-        
-        // --- ПОЛНОЕ ОПИСАНИЕ (ДЛЯ ЗУМА) ---
         let fullTextContent = baseData.fullDesc || baseData.desc;
         if (this.cardData.generatedDesc !== baseData.desc) {
              fullTextContent += "\n\n" + this.cardData.generatedDesc;
         }
 
-        this.fullDesc = scene.add.text(0, 25, fullTextContent, { 
-            fontSize: '18px', 
-            color: '#fff', 
+        this.fullDesc = scene.add.text(0, 20, fullTextContent, { 
+            fontSize: '8px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
+            color: '#e0e0e0', 
             align: 'center', 
-            wordWrap: { width: 130 } 
+            wordWrap: { width: 130 } // Ширина переноса
         }).setOrigin(0.5, 0).setVisible(false);
+
+        // Мана
+        this.costCircle = scene.add.circle(-60, -90, 16, 0x00ffff);
+        
+        let costColor = '#000';
+        if (this.cardData.cost < baseData.cost) costColor = '#008800'; 
+        
+        this.costText = scene.add.text(-60, -90, this.cardData.cost, { 
+            fontSize: '20px', color: costColor, fontStyle: 'bold' 
+        }).setOrigin(0.5);
 
         this.add([this.bg, this.art, this.title, this.shortDesc, this.fullDesc, this.costCircle, this.costText]);
 
@@ -113,16 +112,16 @@ export class Card extends Phaser.GameObjects.Container {
 
         if (isZoomed) { 
             this.shortDesc.setVisible(false);
-            // Картинку оставляем, так красивее
-            // this.art.setVisible(false); 
+            // this.art.setVisible(false); // Картинку не скрываем, места теперь хватит
             
             this.fullDesc.setVisible(true); 
             
-            // Динамический шрифт для Зума
+            // --- УМНЫЙ РАЗМЕР (ДЛЯ ЗУМА) ---
+            // Мы меняем размер с 8px на поменьше, если текста ОЧЕНЬ много
             const len = this.fullDesc.text.length;
-            if (len > 120) this.fullDesc.setFontSize(12);
-            else if (len > 80) this.fullDesc.setFontSize(14);
-            else this.fullDesc.setFontSize(18);
+            if (len > 150) this.fullDesc.setFontSize(6);      // (6 * 2.5 = 15px на экране)
+            else if (len > 100) this.fullDesc.setFontSize(7); // (7 * 2.5 = 17.5px на экране)
+            else this.fullDesc.setFontSize(8);                // (8 * 2.5 = 20px на экране)
             
             this.bg.setStrokeStyle(3, 0x00ffff); 
         } else { 
