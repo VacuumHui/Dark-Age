@@ -11,15 +11,13 @@ export class Unit extends Phaser.GameObjects.Container {
         this.shield = 0;
         this.alive = true;
         
-        // Хранилище статусов (Яд, Сила и т.д.)
         this.statuses = {}; 
-        // Множитель сложности (по умолчанию 1, если не задан Фабрикой)
         this.difficultyMultiplier = 1;
 
         if (isPlayer) {
             this.name = "Герой";
-            this.maxHp = 30;
-            this.hp = 30;
+            this.maxHp = 50;
+            this.hp = 50;
             this.color = 0x2222ff;
         } else {
             const data = ENEMIES_DB[key];
@@ -31,20 +29,16 @@ export class Unit extends Phaser.GameObjects.Container {
             this.currentIntent = null;
         }
         
-        // Визуал
         this.sprite = scene.add.rectangle(0, 0, 80, 100, this.color).setStrokeStyle(2, 0xffffff);
         this.add(this.sprite);
 
-        // UI Полоски
         this.hpBarBg = scene.add.rectangle(0, -60, 70, 10, 0x000000);
         this.hpBar = scene.add.rectangle(0, -60, 70, 10, 0xff0000);
         this.hpText = scene.add.text(0, -80, `${this.hp}/${this.maxHp}`, { fontSize: '16px', fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(0.5);
         this.shieldText = scene.add.text(0, 0, "", { fontSize: '24px', color: '#00ffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
         
-        // Текст статусов
         this.statusText = scene.add.text(0, -95, "", { fontSize: '14px', color: '#ffff00', fontStyle: 'bold' }).setOrigin(0.5);
 
-        // Иконка намерения
         this.intentIcon = scene.add.text(0, -120, "", { fontSize: '24px' }).setOrigin(0.5);
         this.intentValue = scene.add.text(20, -120, "", { fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setOrigin(0.5);
 
@@ -68,19 +62,20 @@ export class Unit extends Phaser.GameObjects.Container {
         this.statusText.setText(text);
     }
 
-    takeDamage(amount) {
+    // --- ИСПРАВЛЕННЫЙ МЕТОД ПОЛУЧЕНИЯ УРОНА ---
+    // Добавили "source = null" в скобки!
+    takeDamage(amount, source = null) {
         if (!this.alive) return;
         
-        // Шипы 
+        // Логика Шипов: Если есть шипы И есть атакующий И атакующий не я сам
         if (this.statuses['thorns'] && source && source !== this) {
             const thornsDmg = this.statuses['thorns'];
-            // Визуал
             this.scene.showFloatingText(this.x, this.y - 120, "THORNS!", 0x228822);
-            // Наносим урон врагу. 
+            // Возвращаем урон (передаем null, чтобы шипы не триггерили шипы бесконечно)
             source.takeDamage(thornsDmg, null);
         }
 
-        // Триггер Ярости
+        // Ярость
         if (this.scene.statusManager) {
             this.scene.statusManager.onTakeDamage(this, amount);
         }
@@ -128,7 +123,7 @@ export class Unit extends Phaser.GameObjects.Container {
         this.updateStatusUI(); 
     }
 
-    // --- AI ВРАГА ---
+    // --- AI ---
     
     chooseIntent() {
         if (this.isPlayer || !this.alive) return;
@@ -143,25 +138,21 @@ export class Unit extends Phaser.GameObjects.Container {
         this.currentIntent = chosenMove;
         this.showIntentUI();
 
-        // МГНОВЕННОЕ ПРИМЕНЕНИЕ (Щит, Баффы на себя)
         if (this.currentIntent.actions) {
             this.currentIntent.actions.forEach(action => {
                 const isSelfBuff = (action.type === 'block' || action.type === 'heal' || (action.type === 'apply_status' && this.currentIntent.target === 'self'));
                 
                 if (isSelfBuff) {
-                    // Применяем МАСШТАБИРОВАНИЕ и здесь тоже
                     let scaledAction = { ...action };
                     if (this.difficultyMultiplier && (action.type === 'block')) {
                         scaledAction.value = Math.floor(action.value * this.difficultyMultiplier);
                     }
-
                     executeAction(this.scene, scaledAction, this, this);
                 }
             });
         }
     }
     
-    // ОБНОВЛЕНО: Показывает усиленные цифры
     showIntentUI() {
         if (!this.currentIntent) return;
         const move = this.currentIntent;
@@ -171,8 +162,6 @@ export class Unit extends Phaser.GameObjects.Container {
         
         if (move.actions && move.actions.length > 0) {
             const firstAction = move.actions[0];
-            
-            // Расчет отображаемого значения с учетом сложности
             let displayValue = firstAction.value;
             if (this.difficultyMultiplier && (firstAction.type === 'damage' || firstAction.type === 'block')) {
                 displayValue = Math.floor(firstAction.value * this.difficultyMultiplier);
@@ -185,12 +174,10 @@ export class Unit extends Phaser.GameObjects.Container {
                 else icon = "🤮"; 
             }
         }
-
         this.intentIcon.setText(icon);
         this.intentValue.setText(val);
     }
     
-    // ОБНОВЛЕНО: Наносит усиленный урон
     executeIntent(playerTarget) {
         if (!this.currentIntent || !this.alive) return;
         
@@ -201,23 +188,18 @@ export class Unit extends Phaser.GameObjects.Container {
 
         if (move.actions) {
             move.actions.forEach(action => {
-                // Выполняем только АТАКУЮЩИЕ действия (урон, дебаффы на врага)
-                // Защитные уже выполнены в chooseIntent
                 const isDefensive = (action.type === 'block' || action.type === 'heal' || (action.type === 'apply_status' && move.target === 'self'));
                 
                 if (!isDefensive) {
                     let finalTarget = playerTarget;
                     if (move.target === 'self') finalTarget = this; 
 
-                    // --- МАСШТАБИРОВАНИЕ СЛОЖНОСТИ ---
                     let scaledAction = { ...action };
                     if (this.difficultyMultiplier && (action.type === 'damage')) {
                         scaledAction.value = Math.floor(action.value * this.difficultyMultiplier);
                     }
-                    // ---------------------------------
 
                     executeAction(this.scene, scaledAction, this, finalTarget);
-                    
                     if (action.type === 'damage') hasAttacked = true;
                 }
             });
