@@ -110,6 +110,21 @@ export const CARDS_DB = {
 
     
     // --- ЛЕГЕНДАРНЫЕ (LEGENDARY) ---
+
+     "mana_crystal": {
+        name: "Кристалл Маны",
+        cost: 3, // Бесплатно сыграть
+        rarity: "legendary",
+        target: "self",
+        consume: true, // <--- НОВЫЙ ФЛАГ: УДАЛИТЬ ИЗ КОЛОДЫ ПРИ ИСПОЛЬЗОВАНИИ
+        color: 0x00ffff, // Голубой
+        desc: "Макс. Мана +1\nУдаляется из колоды",
+        fullDesc: "Древний источник силы.\nУвеличивает вашу Максимальную Ману на 1.\nКарта исчезает после использования.",
+        actions: [
+            { type: "increase_max_mana", value: 1 }
+        ]
+},
+    
     "vampirism": {
         name: "Укус", 
         cost: 1, 
