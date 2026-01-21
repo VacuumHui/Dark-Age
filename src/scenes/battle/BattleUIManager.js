@@ -108,9 +108,25 @@ export class BattleUIManager {
         const closeBtn = this.scene.add.text(GW/2, GH - 80, "[ CLOSE VIEW ]", { 
             fontSize: '30px', color: '#ff5555', fontStyle: 'bold', backgroundColor: '#000' 
         }).setOrigin(0.5).setInteractive();
+        // Рисуем кнопку (Фон)
+        const closeBtnBg = this.add.rectangle(GW/2, GH - 80, 200, 60, 0x990000)
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive();
+
+        // Рисуем текст на кнопке
+        const closeBtnText = this.add.text(GW/2, GH - 80, "CLOSE", { 
+            fontSize: '24px', fontStyle: 'bold', color: '#ffffff' 
+        }).setOrigin(0.5);
+
+        // Логика нажатия и анимация
+        closeBtnBg.on('pointerover', () => closeBtnBg.setScale(1.05));
+        closeBtnBg.on('pointerout', () => closeBtnBg.setScale(1));
+        closeBtnBg.on('pointerdown', () => this.closeDeckView());
+
+        // Добавляем в контейнер
+        this.deckContainer.add([closeBtnBg, closeBtnText]);
         
-        closeBtn.on('pointerdown', () => this.closeDeckView());
-        this.deckContainer.add(closeBtn);
+        // ---------------------------
     }
 
     closeDeckView() {
