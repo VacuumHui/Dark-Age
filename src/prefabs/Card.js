@@ -30,13 +30,12 @@ export class Card extends Phaser.GameObjects.Container {
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
         // Арт (Картинка)
-        // Чуть меньше и выше, чтобы дать место тексту
+
         this.art = scene.add.rectangle(0, -50, 120, 70, baseData.color);
         
         // --- ЗАГОЛОВОК ---
-        // Опустили ниже (-80), чтобы не прилипал к краю карты
         this.title = scene.add.text(15, -85, this.cardData.name, { 
-            fontSize: '14px', 
+            fontSize: '13px', 
             fontStyle: 'bold',
             align: 'right',
             color: '#ffffff',
@@ -69,7 +68,7 @@ export class Card extends Phaser.GameObjects.Container {
         }
 
         this.fullDesc = scene.add.text(0, 20, fullTextContent, { 
-            fontSize: '8px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
+            fontSize: '10px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
             color: '#e0e0e0', 
             align: 'center', 
             wordWrap: { width: 130 } // Ширина переноса
