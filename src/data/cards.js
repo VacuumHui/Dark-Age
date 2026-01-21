@@ -69,6 +69,20 @@ export const CARDS_DB = {
         ]
     },
 
+    "dirty_trick": {
+        name: "Грязный приём",
+        cost: 1,
+        rarity: "common",
+        target: "enemy",
+        color: 0x444444, // Темно-серый
+        desc: "2 урона.\nНакладывает 2 Слабости.",
+        fullDesc: "Подлый удар в уязвимое место.\nВраг наносит на 25% меньше урона в течение 2 ходов.",
+        actions: [
+            { type: "damage", value: 2 },
+            { type: "apply_status", status: "weak", value: 2 }
+        ]
+    },
+
     // --- ЛЕГЕНДАРНЫЕ (LEGENDARY) ---
     "vampirism": {
         name: "Укус", 
