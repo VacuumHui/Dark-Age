@@ -126,6 +126,7 @@ export class HandManager {
             if (!this.scene.isBattleActive) return;
             if (this.scene.zoomedCard) return; 
             const leaderCard = gameObject.parentContainer;
+            if (!leaderCard) return;
             
             if (Date.now() - leaderCard.pressStartTime > 80) {
                 const gap = 35; 
@@ -139,6 +140,9 @@ export class HandManager {
                 leaderCard.y = pointer.y - verticalOffset;
                 
                 const lastInStack = this.activeStack[this.activeStack.length - 1];
+                // Доп. проверка: а есть ли lastInStack?
+                if (!lastInStack) return;
+                
                 for (let i = this.hand.length - 1; i >= 0; i--) {
                     const otherCard = this.hand[i];
                     if (this.activeStack.includes(otherCard)) continue;
@@ -155,6 +159,7 @@ export class HandManager {
 
         this.scene.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.scene.isBattleActive) return;
+            if (this.scene.zoomedCard) return;
             if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
                 this.activeStack = []; 
                 this.returnStackToHand(); 
@@ -166,6 +171,7 @@ export class HandManager {
 
         this.scene.input.on('drop', (pointer, gameObject, dropZone) => {
             if (!this.scene.isBattleActive) return;
+            if (this.scene.zoomedCard) return;
             if (dropZone.name === "discard_zone") { this.discardStack(); return; }
 
             let totalCost = 0;
