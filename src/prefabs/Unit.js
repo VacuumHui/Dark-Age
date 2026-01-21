@@ -71,8 +71,14 @@ export class Unit extends Phaser.GameObjects.Container {
     takeDamage(amount) {
         if (!this.alive) return;
         
-        // Шипы (пока заглушка для логики, нужен source)
-        // if (this.statuses['thorns']) ...
+        // Шипы 
+        if (this.statuses['thorns'] && source && source !== this) {
+            const thornsDmg = this.statuses['thorns'];
+            // Визуал
+            this.scene.showFloatingText(this.x, this.y - 120, "THORNS!", 0x228822);
+            // Наносим урон врагу. 
+            source.takeDamage(thornsDmg, null);
+        }
 
         // Триггер Ярости
         if (this.scene.statusManager) {
