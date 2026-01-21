@@ -30,12 +30,11 @@ export class Card extends Phaser.GameObjects.Container {
         this.bg = scene.add.rectangle(0, 0, w, h, 0x222222).setStrokeStyle(2, strokeColor);
         
         // Арт (Картинка)
-
         this.art = scene.add.rectangle(0, -50, 120, 70, baseData.color);
         
         // --- ЗАГОЛОВОК ---
         this.title = scene.add.text(15, -85, this.cardData.name, { 
-            fontSize: '13px', 
+            fontSize: '14px', 
             fontStyle: 'bold',
             align: 'right',
             color: '#ffffff',
@@ -44,35 +43,38 @@ export class Card extends Phaser.GameObjects.Container {
             wordWrap: { width: 95 } 
         }).setOrigin(0.5);
         
-        // --- ТЕКСТ НА МИНИАТЮРЕ (КРУПНЫЙ) ---
-        // Этот текст виден, когда карта маленькая в руке.
+        // --- ТЕКСТ НА МИНИАТЮРЕ (Оставляем как есть) ---
         let descText = this.cardData.generatedDesc || this.cardData.desc;
         
         this.shortDesc = scene.add.text(0, 30, descText, { 
-            fontSize: '14px', // Крупно, чтобы видно было на телефоне
+            fontSize: '14px', 
             color: '#ffffff', 
             align: 'center', 
             fontStyle: 'bold',
             stroke: '#000',
             strokeThickness: 2,
             wordWrap: { width: 130 } 
-        }).setOrigin(0.5, 0); // Растет вниз от центра
+        }).setOrigin(0.5, 0); 
         
-        // --- ТЕКСТ ПРИ ЗУМЕ (МЕЛКИЙ БАЗОВЫЙ) ---
-        // ВАЖНО: Когда карта зумится (x2.5), этот шрифт умножится на 2.5.
-        // 8px превратится в 20px на экране. Это то, что нам нужно.
-        
+        // --- ПОЛНОЕ ОПИСАНИЕ (ИСПРАВЛЕНО - HD КАЧЕСТВО) ---
         let fullTextContent = baseData.fullDesc || baseData.desc;
         if (this.cardData.generatedDesc !== baseData.desc) {
              fullTextContent += "\n\n" + this.cardData.generatedDesc;
         }
 
-        this.fullDesc = scene.add.text(0, 20, fullTextContent, { 
-            fontSize: '12px', // <--- ОЧЕНЬ МАЛЕНЬКИЙ БАЗОВЫЙ РАЗМЕР
-            color: '#e0e0e0', 
-            align: 'center', 
-            wordWrap: { width: 130 } // Ширина переноса
-        }).setOrigin(0.5, 0).setVisible(false);
+        // ТРЮК: Делаем шрифт ОГРОМНЫМ (24px), но уменьшаем масштаб объекта (.setScale)
+        // При зуме карты качество сохранится.
+        this.fullDesc = scene.add.text(0, 25, fullTextContent, { 
+            fontSize: '24px', // Крупный исходник
+            color: '#fff', 
+            align: 'center',
+            // Увеличиваем ширину переноса, так как текст сжат
+            // Ширина карты 130px / 0.35 (масштаб) = ~370px
+            wordWrap: { width: 360 } 
+        })
+        .setOrigin(0.5, 0)
+        .setScale(0.35) // Сжимаем текст, чтобы влез
+        .setVisible(false);
 
         // Мана
         this.costCircle = scene.add.circle(-60, -90, 16, 0x00ffff);
@@ -111,16 +113,8 @@ export class Card extends Phaser.GameObjects.Container {
 
         if (isZoomed) { 
             this.shortDesc.setVisible(false);
-            // this.art.setVisible(false); // Картинку не скрываем, места теперь хватит
-            
             this.fullDesc.setVisible(true); 
-            
-            // --- УМНЫЙ РАЗМЕР (ДЛЯ ЗУМА) ---
-            // Мы меняем размер с 8px на поменьше, если текста ОЧЕНЬ много
-            const len = this.fullDesc.text.length;
-            if (len > 150) this.fullDesc.setFontSize(6);      // (6 * 2.5 = 15px на экране)
-            else if (len > 100) this.fullDesc.setFontSize(7); // (7 * 2.5 = 17.5px на экране)
-            else this.fullDesc.setFontSize(8);                // (8 * 2.5 = 20px на экране)
+            // Больше не меняем размер шрифта вручную, масштаб карты сам сделает его крупным
             
             this.bg.setStrokeStyle(3, 0x00ffff); 
         } else { 
