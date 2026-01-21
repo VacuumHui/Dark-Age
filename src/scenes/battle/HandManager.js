@@ -277,6 +277,7 @@ export class HandManager {
             this.scene.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 });
         });
         this.activeStack = [];
+        this.rearrangeHand();
     }
 
     discardStack() {
