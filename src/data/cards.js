@@ -75,7 +75,7 @@ export const CARDS_DB = {
         rarity: "common",
         target: "enemy",
         color: 0x444444, // Темно-серый
-        desc: "2 урона.\nНакладывает 2 Слабости.",
+        desc: "2 урона.\nНакладывает Слабость.",
         fullDesc: "Подлый удар в уязвимое место.\nВраг наносит на 25% меньше урона в течение 2 ходов.",
         actions: [
             { type: "damage", value: 2 },
