@@ -32,7 +32,11 @@ export class MapScene extends Phaser.Scene {
         this.add.rectangle(0, 0, mapWidth, mapHeight, 0x110f0a).setOrigin(0);
         
         this.dimmer = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85)
-            .setOrigin(0).setScrollFactor(0).setVisible(false).setDepth(900).setInteractive();
+            .setOrigin(0)
+            .setScrollFactor(0)
+            .setVisible(false)
+            .setDepth(900)
+            .setInteractive();
             
         this.dimmer.on('pointerdown', () => {
             if (this.zoomedCard) {
@@ -46,8 +50,11 @@ export class MapScene extends Phaser.Scene {
 
         this.add.text(50, 80, `ACT ${GameState.act} MAP`, { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
+        // Кнопка Колоды
         const deckBtn = this.add.rectangle(this.scale.width - 150, 130, 200, 60, 0x333333)
-            .setScrollFactor(0).setStrokeStyle(2, 0xffffff).setInteractive();
+            .setScrollFactor(0)
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive();
             
         this.add.text(this.scale.width - 150, 130, `DECK (${GameState.deck.length})`, { 
             fontSize: '24px', fontStyle: 'bold' 
@@ -55,6 +62,7 @@ export class MapScene extends Phaser.Scene {
 
         deckBtn.on('pointerdown', () => this.openDeckView());
 
+        // Отрисовка
         const graphics = this.add.graphics();
         graphics.lineStyle(4, 0x665544);
 
@@ -93,6 +101,7 @@ export class MapScene extends Phaser.Scene {
         const centerX = currentX - (this.scale.width / 2);
         this.cameras.main.scrollX = Math.max(0, centerX);
 
+        // Свайп
         let isDown = false;
         let startDragX = 0;
         let startCameraX = 0;
@@ -101,6 +110,7 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer) => {
             if (this.deckContainer && this.deckContainer.visible) return;
             if (this.zoomedCard) return;
+
             isDown = true;
             this.isDragging = false;
             startDragX = pointer.x;
@@ -121,91 +131,141 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerout', () => { isDown = false; });
     }
 
+    // --- ПРОСМОТР КОЛОДЫ (ИСПРАВЛЕНО) ---
+    
     openDeckView() {
+        // --- ВОТ ТУТ БЫЛА ОШИБКА, ДОБАВИЛИ ОПРЕДЕЛЕНИЕ GW и GH ---
+        const GW = this.scale.width;
+        const GH = this.scale.height;
+
         if (!this.deckContainer) {
             this.deckContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         }
+        
         this.deckContainer.removeAll(true);
         this.deckContainer.setVisible(true);
-        this.dimmer.setVisible(true).setDepth(999); 
+        
+        // Включаем затемнение
+        this.dimmer.setDepth(999).setVisible(true);
 
-        const title = this.add.text(this.scale.width/2, 50, "YOUR DECK", { 
+        const title = this.add.text(GW/2, 50, "YOUR DECK", { 
             fontSize: '40px', fontStyle: 'bold', color: '#ffffff' 
         }).setOrigin(0.5);
         this.deckContainer.add(title);
 
-        const startX = 150; 
-        const startY = 250; // СПУСТИЛИ НИЖЕ (Было 150)
-        const gapX = 120; 
-        const gapY = 230;   // УВЕЛИЧИЛИ РАССТОЯНИЕ
-        
-        const cardsPerRow = Math.floor((this.scale.width - 100) / gapX);
+        const startX = 150;
+        const startY = 150;
+        const gapX = 120;
+        const gapY = 160;
+        const cardsPerRow = Math.floor((GW - 200) / gapX);
 
         const sortedDeck = [...GameState.deck].sort((a, b) => a.id.localeCompare(b.id)); 
 
         sortedDeck.forEach((cardInstance, index) => {
             const col = index % cardsPerRow;
             const row = Math.floor(index / cardsPerRow);
+
             const x = startX + (col * gapX);
             const y = startY + (row * gapY);
 
             const card = new Card(this, x, y, cardInstance);
             this.input.setDraggable(card.bg, false);
+            
             this.deckContainer.add(card);
         });
 
-       // Рисуем кнопку (Фон)
+        // КНОПКА ЗАКРЫТИЯ (Сразу красивая, как в BattleScene)
         const closeBtnBg = this.add.rectangle(GW/2, GH - 80, 200, 60, 0x990000)
             .setStrokeStyle(2, 0xffffff)
             .setInteractive();
 
-        // Рисуем текст на кнопке
         const closeBtnText = this.add.text(GW/2, GH - 80, "CLOSE", { 
             fontSize: '24px', fontStyle: 'bold', color: '#ffffff' 
         }).setOrigin(0.5);
 
-        // Логика нажатия и анимация
         closeBtnBg.on('pointerover', () => closeBtnBg.setScale(1.05));
         closeBtnBg.on('pointerout', () => closeBtnBg.setScale(1));
         closeBtnBg.on('pointerdown', () => this.closeDeckView());
-
-        // Добавляем в контейнер
-        this.deckContainer.add([closeBtnBg, closeBtnText]);
         
-        // ---------------------------
+        this.deckContainer.add([closeBtnBg, closeBtnText]);
     }
 
     closeDeckView() {
-        if (this.deckContainer) this.deckContainer.setVisible(false);
+        if (this.deckContainer) {
+            this.deckContainer.setVisible(false);
+        }
         this.dimmer.setVisible(false);
         this.unzoomCard();
     }
 
     zoomCard(card) {
-        if (this.zoomedCard) return; this.zoomedCard = card;
+        if (this.zoomedCard) return; 
+        this.zoomedCard = card;
+        
         if (card.parentContainer) {
             this.parentContainerRef = card.parentContainer;
-            card.savedContainerX = card.x; card.savedContainerY = card.y;
+            card.savedContainerX = card.x;
+            card.savedContainerY = card.y;
             const worldPos = card.getWorldTransformMatrix();
-            card.x = worldPos.tx; card.y = worldPos.ty;
+            card.x = worldPos.tx;
+            card.y = worldPos.ty;
             card.parentContainer.remove(card);
             this.add.existing(card);
         }
+
         this.dimmer.setDepth(2000).setVisible(true);
-        card.setDepth(2001); card.setScrollFactor(0);
-        card.savedX = card.x; card.savedY = card.y; card.savedAngle = card.angle; card.savedScale = card.scale;
+        card.setDepth(2001);
+        card.setScrollFactor(0);
+
+        card.savedX = card.x; 
+        card.savedY = card.y; 
+        card.savedAngle = card.angle; 
+        card.savedScale = card.scale;
+        
         card.toggleMode(true);
-        this.tweens.add({ targets: card, x: this.scale.width / 2, y: this.scale.height / 2, angle: 0, scale: 2.5, duration: 300, ease: 'Back.out' });
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: this.scale.width / 2, 
+            y: this.scale.height / 2, 
+            angle: 0, 
+            scale: 2.5, 
+            duration: 300, 
+            ease: 'Back.out' 
+        });
     }
     
     unzoomCard() {
-        if (!this.zoomedCard) return; const card = this.zoomedCard;
-        this.zoomedCard = null; card.toggleMode(false);
-        this.tweens.add({ targets: card, x: card.savedX, y: card.savedY, angle: card.savedAngle, scale: 1, duration: 250, ease: 'Power2', onComplete: () => {
-            if (this.parentContainerRef) { this.parentContainerRef.add(card); card.x = card.savedContainerX; card.y = card.savedContainerY; this.parentContainerRef = null; }
-            if (this.deckContainer && this.deckContainer.visible) this.dimmer.setDepth(999); else this.dimmer.setVisible(false);
-            card.setDepth(0);
-        }});
+        if (!this.zoomedCard) return; 
+        const card = this.zoomedCard;
+        this.zoomedCard = null; 
+        
+        card.toggleMode(false);
+        
+        this.tweens.add({ 
+            targets: card, 
+            x: card.savedX, 
+            y: card.savedY, 
+            angle: card.savedAngle, 
+            scale: 1, 
+            duration: 250, 
+            ease: 'Power2',
+            onComplete: () => {
+                if (this.parentContainerRef) {
+                    this.parentContainerRef.add(card);
+                    card.x = card.savedContainerX;
+                    card.y = card.savedContainerY;
+                    this.parentContainerRef = null;
+                }
+                
+                if (this.deckContainer && this.deckContainer.visible) {
+                    this.dimmer.setDepth(999); 
+                } else {
+                    this.dimmer.setVisible(false);
+                }
+                card.setDepth(0);
+            }
+        });
     }
 
     findNodeById(id) {
@@ -217,13 +277,20 @@ export class MapScene extends Phaser.Scene {
     }
 
     drawNode(node, x, y) {
-        let color = 0x444444; let stroke = 0x000000; let interactive = false;
-        if (node.status === 'completed') { color = 0x222222; stroke = 0x555555; }
-        else if (node.status === 'available') {
-            color = 0xffaa00; stroke = 0xffffff; interactive = true;
+        let color = 0x444444; 
+        let stroke = 0x000000;
+        let interactive = false;
+
+        if (node.status === 'completed') {
+            color = 0x222222; stroke = 0x555555;
+        } else if (node.status === 'available') {
+            color = 0xffaa00; stroke = 0xffffff;
+            interactive = true;
             this.tweens.add({ targets: this.add.circle(x, y, 35, 0xffaa00, 0.2), scale: 1.3, alpha: 0, duration: 1000, repeat: -1 });
         }
+
         const circle = this.add.circle(x, y, 28, color).setStrokeStyle(3, stroke);
+        
         let icon = "❓";
         if (node.type === 'start') icon = "🏠";
         if (node.type === 'battle') icon = "⚔️";
@@ -231,24 +298,37 @@ export class MapScene extends Phaser.Scene {
         if (node.type === 'shop') icon = "💰";
         if (node.type === 'rest') icon = "🔥";
         if (node.type === 'event') icon = "❕";
+
         this.add.text(x, y, icon, { fontSize: '26px' }).setOrigin(0.5);
+
         if (interactive) {
             circle.setInteractive();
             circle.on('pointerup', () => {
                 if (this.isDragging) return;
+
                 GameState.currentNode = node.id;
                 GameState.currentFloor = node.x;
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
-                if (node.type === 'battle' || node.type === 'start') {
-                    const enemy = Math.random() > 0.5 ? "slime" : "knight";
+
+                if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
+                    // Передаем рандомного врага или босса
+                    const isBoss = node.type === 'boss';
+                    const enemy = isBoss 
+                        ? (GameState.bosses[GameState.act] || "boss_dragon")
+                        : (Math.random() > 0.5 ? "slime" : "knight");
+                        
                     this.scene.start('BattleScene', { enemyKey: enemy });
-                } else if (node.type === 'boss') {
-                    const bossId = GameState.bosses[GameState.act] || "boss_dragon";
-                    this.scene.start('BattleScene', { enemyKey: bossId });
-                } else if (node.type === 'rest') { this.scene.start('RestScene'); } 
-                else if (node.type === 'event') { this.scene.start('EventScene'); } 
-                else if (node.type === 'shop') { this.scene.start('ShopScene'); } 
-                else { alert("Заглушка: " + node.type); this.scene.start('BattleScene'); }
+                } 
+                else if (node.type === 'rest') {
+                    this.scene.start('RestScene');
+                } else if (node.type === 'event') {
+                    this.scene.start('EventScene');
+                } else if (node.type === 'shop') {
+                    this.scene.start('ShopScene');
+                } else {
+                    alert("Заглушка: " + node.type);
+                    this.scene.start('BattleScene');
+                }
             });
         }
     }
