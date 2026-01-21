@@ -4,20 +4,15 @@ import { Card } from '../../prefabs/Card.js';
 import { GameState } from '../../GameState.js';
 import { getComputedCard } from '../../managers/CardLogic.js';
 import { executeAction } from '../../managers/ActionManager.js';
-import { CARDS_DB } from '../../data/cards.js';
 
 export class HandManager {
     constructor(scene) {
         this.scene = scene;
-        
-        // Данные карт храним теперь ЗДЕСЬ
         this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
         this.discardPile = [];
         this.hand = [];
-        this.activeStack = []; // Стек для комбо
+        this.activeStack = []; 
     }
-
-    // --- ОСНОВНЫЕ МЕТОДЫ ---
 
     drawCards(amount) {
         const GW = this.scene.scale.width;
@@ -44,26 +39,34 @@ export class HandManager {
         this.rearrangeHand();
     }
 
-    playCard(card, target) {
-        const computedData = getComputedCard(card.cardInstance);
+    // --- НОВЫЙ МЕТОД: СБРОС ВСЕЙ РУКИ ---
+    discardHand() {
+        // Копируем массив, чтобы не модифицировать его во время перебора
+        const cardsToDiscard = [...this.hand];
         
-        if (computedData.actions) { 
-            computedData.actions.forEach(action => { 
-                let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.scene.player;
-                executeAction(this.scene, action, this.scene.player, finalTarget); 
-            }); 
-        }
+        cardsToDiscard.forEach(card => {
+            // Если карта активна (в стеке драга) - мы её уже "держим", не сбрасываем насильно
+            // (или сбрасываем, тут зависит от геймдизайна. Обычно конец хода сбрасывает всё).
+            this.discardCard(card);
+        });
         
-        this.scene.spendMana(computedData.cost);
-        this.discardCard(card);
-        this.scene.updateGlobalUI();
+        this.hand = []; // Очищаем массив руки
+        this.activeStack = []; // Очищаем стек
+    }
+
+    // Просто удалить визуал (для победы)
+    discardHandVisual() { 
+        this.hand.forEach(card => card.destroy()); 
+        this.hand = []; 
+        this.activeStack = [];
     }
 
     discardCard(card) {
         this.discardPile.push(card.cardInstance);
-        this.hand = this.hand.filter(c => c !== card);
         
+        // Убираем из массива руки
+        this.hand = this.hand.filter(c => c !== card);
+
         this.scene.tweens.add({ 
             targets: card, 
             x: this.scene.ui.trashZone.x, 
@@ -74,43 +77,42 @@ export class HandManager {
         this.scene.ui.updateDeckCount(this.drawPile.length, this.discardPile.length);
     }
 
-    discardHandVisual() { 
-        this.hand.forEach(card => card.destroy()); 
-        this.hand = []; 
+    // ... (ОСТАЛЬНОЕ: playCard, setupInput, updateStackVisuals и т.д. без изменений,
+    // но для надежности я продублирую весь класс ниже)
+
+    playCard(card, target) {
+        const computedData = getComputedCard(card.cardInstance);
+        if (computedData.actions) { 
+            computedData.actions.forEach(action => { 
+                let finalTarget = target;
+                if (action.target === 'self') finalTarget = this.scene.player;
+                executeAction(this.scene, action, this.scene.player, finalTarget); 
+            }); 
+        }
+        this.scene.spendMana(computedData.cost);
+        this.discardCard(card);
+        this.scene.updateGlobalUI();
     }
 
     rearrangeHand() {
-        const GW = this.scene.scale.width; 
-        const GH = this.scene.scale.height;
-        const cardW = 150; 
-        const totalW = this.hand.length * cardW;
+        const GW = this.scene.scale.width; const GH = this.scene.scale.height;
+        const cardW = 150; const totalW = this.hand.length * cardW;
         const startX = (GW - totalW) / 2 + (cardW / 2);
-        
         this.hand.forEach((card, index) => {
             if (this.activeStack.includes(card)) return;
             if (card === this.scene.zoomedCard) return;
 
             card.baseX = startX + (index * cardW); 
             card.baseY = GH - 110;
-            
-            this.scene.tweens.add({ 
-                targets: card, 
-                x: card.baseX, 
-                y: card.baseY, 
-                angle: (index - (this.hand.length/2)) * 2, 
-                duration: 300 
-            }); 
+            this.scene.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 2, duration: 300 }); 
         });
     }
-
-    // =========================================================
-    // ВВОД (DRAG & DROP)
-    // =========================================================
 
     setupInput() {
         this.scene.input.on('dragstart', (pointer, gameObject) => {
             if (!this.scene.isBattleActive) return;
-            if (this.scene.deckContainer && this.scene.deckContainer.visible) return;
+            // Проверка: если открыта колода, драг запрещен
+            if (this.scene.ui.deckContainer && this.scene.ui.deckContainer.visible) return;
             
             const card = gameObject.parentContainer;
             if (this.scene.zoomedCard) return;
@@ -135,14 +137,11 @@ export class HandManager {
                 leaderCard.x = pointer.x - centerOffset;
                 leaderCard.y = pointer.y - verticalOffset;
                 
-                // Магнит
                 const lastInStack = this.activeStack[this.activeStack.length - 1];
                 for (let i = this.hand.length - 1; i >= 0; i--) {
                     const otherCard = this.hand[i];
                     if (this.activeStack.includes(otherCard)) continue;
-                    
                     const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
-                    
                     if (dist < 130) { 
                         this.activeStack.push(otherCard);
                         otherCard.setDepth(100 - this.activeStack.length); 
@@ -155,27 +154,18 @@ export class HandManager {
 
         this.scene.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.scene.isBattleActive) return;
-            
             if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
                 this.activeStack = []; 
                 this.returnStackToHand(); 
                 return;
             }
-
             this.activeStack.forEach(c => c.setDepth(0));
-
-            if (!dropped) {
-                this.returnStackToHand();
-            }
+            if (!dropped) { this.returnStackToHand(); }
         });
 
         this.scene.input.on('drop', (pointer, gameObject, dropZone) => {
             if (!this.scene.isBattleActive) return;
-            
-            if (dropZone.name === "discard_zone") { 
-                this.discardStack(); 
-                return; 
-            }
+            if (dropZone.name === "discard_zone") { this.discardStack(); return; }
 
             let totalCost = 0;
             this.activeStack.forEach(card => {
@@ -216,10 +206,8 @@ export class HandManager {
             const distFromCenter = Math.abs(i - centerAngleIndex);
             const targetY = anchorY + (distFromCenter * 10); 
             const speed = (i === 0) ? 0.6 : 0.4;
-            
             card.x += (targetX - card.x) * speed;
             card.y += (targetY - card.y) * speed;
-
             const targetAngle = (i - centerAngleIndex) * angleStep;
             card.angle += (targetAngle - card.angle) * 0.3;
         }
@@ -228,18 +216,14 @@ export class HandManager {
     playStackSequence(target) {
         const stackToPlay = [...this.activeStack];
         this.activeStack = []; 
-        
         this.hand = this.hand.filter(c => !stackToPlay.includes(c));
         this.rearrangeHand();
-
         const stepDelay = Math.max(100, 500 - (stackToPlay.length * 80));
 
         stackToPlay.forEach((card, index) => {
             card.setDepth(2000 + index);
-
             const hoverX = target.x + (target.isPlayer ? 250 : -250); 
             const hoverY = target.y - 50;
-
             this.scene.tweens.add({
                 targets: card, x: hoverX, y: hoverY, scale: 1.3,
                 angle: (target.isPlayer ? -15 : 15), duration: 400, delay: index * stepDelay, ease: 'Power2',
@@ -254,6 +238,7 @@ export class HandManager {
     }
 
     playCardLogic(card, target) {
+        // Логика перенесена сюда из HandManager.playCard
         const computedData = getComputedCard(card.cardInstance);
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
@@ -276,7 +261,6 @@ export class HandManager {
             this.scene.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 });
         });
         this.activeStack = [];
-        this.rearrangeHand();
     }
 
     discardStack() {
