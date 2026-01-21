@@ -54,7 +54,9 @@ export class StatusManager {
         if (unit.statuses['poison'] > 0) {
             const dmg = unit.statuses['poison'];
             this.scene.showFloatingText(unit.x, unit.y - 100, "POISON!", 0x00ff00);
-            unit.takeDamage(dmg);
+            
+            // Передаем null, так как у яда нет физического атакующего
+            unit.takeDamage(dmg, null);
             
             unit.statuses['poison']--;
             if (unit.statuses['poison'] <= 0) delete unit.statuses['poison'];
@@ -62,10 +64,9 @@ export class StatusManager {
         
         unit.updateStatusUI();
     }
-
-    /**
-     * Событие: Конец хода (Сгорание временных баффов)
-     */
+    
+     //Событие: Конец хода (Сгорание временных баффов)
+     
     onTurnEnd(unit) {
         // СИЛА сгорает
         if (unit.statuses['strength']) {
