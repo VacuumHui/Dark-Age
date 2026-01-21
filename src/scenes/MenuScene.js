@@ -1,24 +1,32 @@
 // Файл: src/scenes/MenuScene.js
-
 import { GameState } from '../GameState.js';
 
 export class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
 
     create() {
+        // --- ПРОВЕРКА НА АВТО-СТАРТ ---
+        // Если мы только что перезагрузили страницу ради новой игры
+        if (localStorage.getItem('autoStartNewGame') === 'true') {
+            localStorage.removeItem('autoStartNewGame');
+            this.startNewGameInstant(); // Сразу запускаем
+            return;
+        }
+        // ------------------------------
+
         const GW = this.scale.width;
         const GH = this.scale.height;
 
         this.add.rectangle(0, 0, GW, GH, 0x110f0a).setOrigin(0);
 
+        // Частицы
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffaa00, 1);
             graphics.fillCircle(4, 4, 4);
             graphics.generateTexture('flare', 8, 8);
         }
-
-        const particles = this.add.particles(0, 0, 'flare', {
+        this.add.particles(0, 0, 'flare', {
             x: { min: 0, max: GW }, y: GH + 50,
             speedY: { min: -20, max: -50 },
             scale: { start: 0.8, end: 0 }, alpha: { start: 0.5, end: 0 },
@@ -31,7 +39,9 @@ export class MenuScene extends Phaser.Scene {
         const startBtn = this.createButton(GW/2, GH * 0.6, "NEW GAME", 0x44aa44);
         
         startBtn.on('pointerdown', () => {
-            this.startNewGame();
+            // Ставим метку и перезагружаем страницу
+            localStorage.setItem('autoStartNewGame', 'true');
+            location.reload();
         });
     }
 
@@ -46,37 +56,10 @@ export class MenuScene extends Phaser.Scene {
         return bg;
     }
 
-    // Вспомогательная функция для создания карт
-    _createCard(id) {
-        return { id: id, uid: Date.now() + Math.random(), enchants: [] };
-    }
-
-    startNewGame() {
-        console.log("HARD RESET INITIATED");
-
-        // 1. Сбрасываем Глобальное Состояние ВРУЧНУЮ
-        // Это гарантирует, что 0 ХП превратится в 50
-        GameState.maxHp = 50;
-        GameState.currentHp = 50; // <--- ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ
-        GameState.gold = 100;
-        GameState.maxMana = 3;
-        GameState.level = 1;
-        GameState.act = 1;
-        GameState.relics = [];
-        
-        // 2. Сбрасываем колоду
-        GameState.deck = [
-            this._createCard("strike"), this._createCard("strike"), this._createCard("strike"),
-            this._createCard("defend"), this._createCard("defend"), this._createCard("defend")
-        ];
-
-        // 3. Сбрасываем Карту
-        GameState.mapData = null;
-        GameState.mapGenerated = false;
-        GameState.currentFloor = 0;
-        GameState.currentNode = null;
-
-        // 4. Запускаем
+    // Этот метод вызывается только после перезагрузки
+    startNewGameInstant() {
+        console.log("Fresh Start!");
+        GameState.reset(); 
         this.scene.start('MapScene');
     }
 }
