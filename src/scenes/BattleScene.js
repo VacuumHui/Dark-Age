@@ -30,11 +30,37 @@ export class BattleScene extends Phaser.Scene {
 
         if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
 
+        // --- 1. ГЕНЕРАЦИЯ ТЕКСТУР ДЛЯ ЭФФЕКТОВ ---
+        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+
+        // 1. Flare (Мягкий круг - для света)
         if (!this.textures.exists('flare')) {
-            const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+            graphics.clear();
             graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(4, 4, 4);
-            graphics.generateTexture('flare', 8, 8);
+            graphics.fillCircle(8, 8, 8);
+            graphics.generateTexture('flare', 16, 16);
+        }
+
+        // 2. Spark (Ромб - для ударов)
+        if (!this.textures.exists('spark')) {
+            graphics.clear();
+            graphics.fillStyle(0xffffff, 1);
+            graphics.beginPath();
+            graphics.moveTo(8, 0);
+            graphics.lineTo(16, 8);
+            graphics.lineTo(8, 16);
+            graphics.lineTo(0, 8);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.generateTexture('spark', 16, 16);
+        }
+
+        // 3. Drop (Капля - для яда/крови)
+        if (!this.textures.exists('drop')) {
+            graphics.clear();
+            graphics.fillStyle(0xffffff, 1);
+            graphics.fillCircle(6, 6, 6);
+            graphics.generateTexture('drop', 12, 12);
         }
         
         this.ui = new BattleUIManager(this);
