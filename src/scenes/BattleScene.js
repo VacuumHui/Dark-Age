@@ -28,9 +28,7 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        if (!this.scene.isActive('UIScene')) {
-            this.scene.launch('UIScene');
-        }
+        if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
 
         if (!this.textures.exists('flare')) {
             const graphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -39,31 +37,32 @@ export class BattleScene extends Phaser.Scene {
             graphics.generateTexture('flare', 8, 8);
         }
         
-        // 1. Инициализация менеджеров
         this.ui = new BattleUIManager(this);
         this.handManager = new HandManager(this);
-        
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // 2. Данные
-        this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
-        this.discardPile = [];
-        this.hand = [];
-        this.activeStack = [];
-
+        // Ресурсы
         this.mana = 3;
         this.maxMana = GameState.maxMana || 3;
 
-        // 3. UI
+        // UI
         this.ui.createHUD(GW, GH);
         this.ui.createRelicUI(); 
         this.updateManaUI();
 
-        // 4. Юниты
+        // Юниты
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
+        
+        // --- !!! ЗАЩИТА ОТ БАГА С 0 ХП !!! ---
+        if (GameState.currentHp <= 0) {
+            console.warn("Emergency Heal Activated!");
+            GameState.currentHp = 50; // Насильно лечим
+        }
+        // -------------------------------------
+        
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
         this.player.updateUI();
@@ -74,13 +73,12 @@ export class BattleScene extends Phaser.Scene {
         this.relicManager.trigger('onBattleStart');
         this.updateGlobalUI();
 
-        // 5. Старт
+        // Старт: сбрасываем руку и берем 5 карт
+        this.handManager.hand = []; 
         this.handManager.drawCards(5);
         this.handManager.setupInput();
         
-        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85)
-            .setVisible(false).setDepth(900).setInteractive();
-            
+        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
         this.dimmer.on('pointerdown', () => {
             if (this.zoomedCard) this.unzoomCard();
             else if (this.ui.deckContainer && this.ui.deckContainer.visible) this.ui.closeDeckView();
@@ -97,273 +95,8 @@ export class BattleScene extends Phaser.Scene {
         this.isBattleActive = true;
     }
 
-    // =========================================================
-    // БЛОК 1: ЛОГИКА КАРТ
-    // =========================================================
-
-    playCard(card, target) {
-        const computedData = getComputedCard(card.cardInstance);
-        
-        if (computedData.actions) { 
-            computedData.actions.forEach(action => { 
-                let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.player;
-                executeAction(this, action, this.player, finalTarget); 
-            }); 
-        }
-
-        this.spendMana(computedData.cost);
-
-        if (computedData.consume) {
-            this.consumeCard(card);
-        } else {
-            this.discardCard(card);
-        }
-        
-        this.updateGlobalUI();
-    }
-
-    consumeCard(card) {
-        this.hand = this.hand.filter(c => c !== card);
-        const index = GameState.deck.findIndex(c => c.uid === card.cardInstance.uid);
-        if (index > -1) {
-            GameState.deck.splice(index, 1);
-        }
-
-        this.tweens.add({
-            targets: card, alpha: 0, scale: 0, angle: 360, duration: 600,
-            onComplete: () => { card.destroy(); this.updateDeckUI(); this.rearrangeHand(); }
-        });
-    }
-
-    discardCard(card) {
-        this.discardPile.push(card.cardInstance);
-        this.hand = this.hand.filter(c => c !== card);
-        
-        this.tweens.add({ 
-            targets: card, 
-            // ИСПРАВЛЕНИЕ: Берем координаты из this.ui, а не из this
-            x: this.ui.trashZone.x, 
-            y: this.ui.trashZone.y, 
-            alpha: 0, scale: 0.1, duration: 300, 
-            onComplete: () => { card.destroy(); this.rearrangeHand(); } 
-        });
-        this.updateDeckUI();
-    }
-
-    drawCards(amount) {
-        // Делегируем HandManager, но используем локальную логику если нужно
-        // В данном случае код дублирован в HandManager, но BattleScene использует свой
-        const GW = this.scale.width;
-        for (let i = 0; i < amount; i++) {
-            if (this.hand.length >= 6) break;
-
-            if (this.drawPile.length === 0) {
-                if (this.discardPile.length > 0) {
-                    this.drawPile = Phaser.Utils.Array.Shuffle([...this.discardPile]);
-                    this.discardPile = [];
-                    this.showFloatingText(100, 500, "Reshuffle!", 0xaaaaaa);
-                } else {
-                    break;
-                }
-            }
-
-            const cardInstance = this.drawPile.pop();
-            const card = new Card(this, GW/2, this.scale.height + 200, cardInstance);
-            this.add.existing(card);
-            this.hand.push(card);
-        }
-        this.updateDeckUI();
-        this.rearrangeHand();
-    }
-
-    rearrangeHand() {
-        const GW = this.scale.width; const GH = this.scale.height;
-        const cardW = 150; const totalW = this.hand.length * cardW;
-        const startX = (GW - totalW) / 2 + (cardW / 2);
-        this.hand.forEach((card, index) => {
-            if (this.activeStack && this.activeStack.includes(card)) return;
-            if (card === this.zoomedCard) return;
-
-            card.baseX = startX + (index * cardW); 
-            card.baseY = GH - 110;
-            this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, angle: (index - (this.hand.length/2)) * 2, duration: 300 }); 
-        });
-    }
-
-    returnCardToHand(card) { this.tweens.add({ targets: card, x: card.baseX, y: card.baseY, duration: 200 }); }
-
-    // =========================================================
-    // БЛОК 2: ВВОД
-    // =========================================================
-
-    setupInput() {
-        this.input.on('dragstart', (pointer, gameObject) => {
-            if (!this.isBattleActive) return;
-            if (this.ui.deckContainer && this.ui.deckContainer.visible) return;
-            const card = gameObject.parentContainer;
-            if (this.zoomedCard) return;
-
-            this.activeStack = [card];
-            card.setDepth(100); 
-            card.pressStartTime = Date.now();
-        });
-
-        this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            if (!this.isBattleActive) return;
-            const leaderCard = gameObject.parentContainer;
-            
-            if (Date.now() - leaderCard.pressStartTime > 80) {
-                const gap = 35; 
-                const centerOffset = ((this.activeStack.length - 1) * gap) / 2;
-                const verticalOffset = this.activeStack.length > 1 ? 110 : 80;
-
-                this.targetPointerX = pointer.x;
-                this.targetPointerY = pointer.y - verticalOffset;
-
-                leaderCard.x = pointer.x - centerOffset;
-                leaderCard.y = pointer.y - verticalOffset;
-                
-                const lastInStack = this.activeStack[this.activeStack.length - 1];
-                for (let i = this.hand.length - 1; i >= 0; i--) {
-                    const otherCard = this.hand[i];
-                    if (this.activeStack.includes(otherCard)) continue;
-                    
-                    const dist = Phaser.Math.Distance.Between(lastInStack.x, lastInStack.y, otherCard.x, otherCard.y);
-                    
-                    if (dist < 130) { 
-                        this.activeStack.push(otherCard);
-                        otherCard.setDepth(100 - this.activeStack.length); 
-                        this.tweens.add({ targets: otherCard, scale: { from: 1.1, to: 1 }, duration: 100 });
-                    }
-                }
-                this.updateStackVisuals();
-            }
-        });
-
-        this.input.on('dragend', (pointer, gameObject, dropped) => {
-            if (!this.isBattleActive) return;
-            
-            if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
-                this.activeStack = []; 
-                this.returnStackToHand(); 
-                return;
-            }
-
-            this.activeStack.forEach(c => c.setDepth(0));
-
-            if (!dropped) {
-                this.returnStackToHand();
-            }
-        });
-
-        this.input.on('drop', (pointer, gameObject, dropZone) => {
-            if (!this.isBattleActive) return;
-            
-            if (dropZone.name === "discard_zone") { 
-                this.discardStack(); 
-                return; 
-            }
-
-            let totalCost = 0;
-            this.activeStack.forEach(card => {
-                const computed = getComputedCard(card.cardInstance);
-                totalCost += computed.cost;
-            });
-
-            if (this.mana < totalCost) {
-                this.showFloatingText(this.activeStack[0].x, this.activeStack[0].y, "Not enough Mana!", 0xff0000);
-                this.returnStackToHand();
-                return;
-            }
-
-            let dropTargetUnit = null;
-            if (dropZone.name === "enemy_target" && this.enemy.alive) dropTargetUnit = this.enemy;
-            else if (dropZone.name === "player_target" && this.player.alive) dropTargetUnit = this.player;
-
-            if (dropTargetUnit) {
-                this.playStackSequence(dropTargetUnit);
-            } else {
-                this.returnStackToHand();
-            }
-        });
-    }
-
-    updateStackVisuals() {
-        if (this.activeStack.length === 0) return;
-        const anchorX = this.targetPointerX || this.activeStack[0].x;
-        const anchorY = this.targetPointerY || this.activeStack[0].y;
-        const gap = 40;     
-        const angleStep = 10; 
-        const startX = anchorX - ((this.activeStack.length - 1) * gap) / 2;
-        const centerAngleIndex = (this.activeStack.length - 1) / 2;
-
-        for (let i = 0; i < this.activeStack.length; i++) {
-            const card = this.activeStack[i];
-            const targetX = startX + (i * gap);
-            const distFromCenter = Math.abs(i - centerAngleIndex);
-            const targetY = anchorY + (distFromCenter * 10); 
-            const speed = (i === 0) ? 0.6 : 0.4;
-            
-            card.x += (targetX - card.x) * speed;
-            card.y += (targetY - card.y) * speed;
-
-            const targetAngle = (i - centerAngleIndex) * angleStep;
-            card.angle += (targetAngle - card.angle) * 0.3;
-        }
-    }
-
-    playStackSequence(target) {
-        const stackToPlay = [...this.activeStack];
-        this.activeStack = []; 
-        this.hand = this.hand.filter(c => !stackToPlay.includes(c));
-        this.rearrangeHand();
-        const stepDelay = Math.max(100, 500 - (stackToPlay.length * 80));
-
-        stackToPlay.forEach((card, index) => {
-            card.setDepth(2000 + index);
-            const hoverX = target.x + (target.isPlayer ? 250 : -250); 
-            const hoverY = target.y - 50;
-
-            this.tweens.add({
-                targets: card, x: hoverX, y: hoverY, scale: 1.3,
-                angle: (target.isPlayer ? -15 : 15), duration: 400, delay: index * stepDelay, ease: 'Power2',
-                onComplete: () => {
-                    this.tweens.add({
-                        targets: card, x: target.x, y: target.y, duration: 120, ease: 'Quad.easeIn',
-                        onComplete: () => { 
-                            this.playCard(card, target); 
-                        }
-                    });
-                }
-            });
-        });
-    }
-
-    returnStackToHand() {
-        this.activeStack.forEach(card => {
-            card.setDepth(0);
-        });
-        this.activeStack = [];
-        this.rearrangeHand();
-    }
-
-    discardStack() {
-        const cardsToDiscard = [...this.activeStack];
-        this.activeStack = [];
-        this.hand = this.hand.filter(c => !cardsToDiscard.includes(c));
-        cardsToDiscard.forEach(card => this.discardCard(card));
-        this.rearrangeHand();
-    }
-
-    // =========================================================
-    // МОСТЫ И ХЕЛПЕРЫ
-    // =========================================================
-
-    spendMana(amount) { 
-        this.mana -= amount; 
-        this.updateManaUI(); 
-    }
+    // --- МОСТЫ ---
+    spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
 
     updateManaUI() {
         this.ui.updateMana(this.mana, this.maxMana);
@@ -371,29 +104,21 @@ export class BattleScene extends Phaser.Scene {
     }
 
     updateGlobalUI() {
-        if (this.player) {
-            GameState.currentHp = this.player.hp;
-        }
+        if (this.player) GameState.currentHp = this.player.hp;
         this.game.events.emit('UPDATE_UI');
     }
 
     updateDeckUI() {
         this.ui.updateDeckCount(
-            this.handManager ? this.handManager.drawPile.length : this.drawPile.length, 
-            this.handManager ? this.handManager.discardPile.length : this.discardPile.length
+            this.handManager.drawPile.length, 
+            this.handManager.discardPile.length
         );
     }
 
     showFloatingText(x, y, message, color) {
         this.ui.showFloatingText(x, y, message, color);
     }
-    
-    discardHandVisual() { 
-        this.hand.forEach(card => card.destroy()); 
-        this.hand = []; 
-    }
 
-    // --- ZOOM ---
     openDeckView() { this.ui.openDeckView(); }
     closeDeckView() { this.ui.closeDeckView(); }
     
@@ -413,6 +138,7 @@ export class BattleScene extends Phaser.Scene {
         card.toggleMode(true);
         this.tweens.add({ targets: card, x: this.scale.width / 2, y: this.scale.height / 2, scale: 2.5, duration: 300, ease: 'Back.out' });
     }
+    
     unzoomCard() {
         if (!this.zoomedCard) return; const card = this.zoomedCard;
         this.zoomedCard = null; card.toggleMode(false);
@@ -423,21 +149,18 @@ export class BattleScene extends Phaser.Scene {
         }});
     }
 
-    // --- TURN LOGIC ---
+    // --- ЛОГИКА ХОДА (FIXED) ---
 
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
-        if (this.statusManager) {
-            this.statusManager.onTurnStart(this.enemy); 
-        }
+        // 1. Ход Врага
+        if (this.statusManager) this.statusManager.onTurnStart(this.enemy); 
         this.enemy.resetShield();
 
         let skipEnemyTurn = false;
-        if (this.statusManager) {
-            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
-        }
+        if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
 
         if (!skipEnemyTurn) {
             this.enemy.executeIntent(this.player);
@@ -447,8 +170,9 @@ export class BattleScene extends Phaser.Scene {
         
         this.updateGlobalUI();
 
-        if (!this.player.alive) return;
+        if (!this.player.alive) return; // Ждем обработчик смерти
 
+        // 2. Передача хода
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
@@ -469,9 +193,16 @@ export class BattleScene extends Phaser.Scene {
             this.mana = this.maxMana; 
             this.updateManaUI();
             
-            const cardsNeeded = 5 - this.hand.length;
-            if (cardsNeeded > 0) this.drawCards(cardsNeeded);
-            else this.rearrangeHand();
+            // --- ДОБОР КАРТ (FIXED) ---
+            const cardsInHand = this.handManager.hand.length;
+            const cardsNeeded = 5 - cardsInHand;
+            
+            // Добираем только если меньше 5
+            if (cardsNeeded > 0) {
+                this.handManager.drawCards(cardsNeeded);
+            } else {
+                this.handManager.rearrangeHand();
+            }
         });
     }
 
@@ -491,7 +222,7 @@ export class BattleScene extends Phaser.Scene {
 
     handleVictory() {
         this.isBattleActive = false;
-        this.discardHandVisual(); 
+        this.handManager.discardHandVisual(); 
 
         const GW = this.scale.width; const GH = this.scale.height;
         GameState.currentHp = this.player.hp;
