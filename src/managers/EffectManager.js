@@ -9,10 +9,10 @@ export class EffectManager {
     playHit(x, y) {
         // Вспышка
         const burst = this.scene.add.particles(x, y, 'flare', {
-            speed: { min: 50, max: 150 },
-            scale: { start: 2, end: 0 },
+            speed: { min: 80, max: 110 },
+            scale: { start: 3, end: 0 },
             alpha: { start: 1, end: 0 },
-            lifespan: 200,
+            lifespan: 500,
             blendMode: 'ADD',
             quantity: 1
         });
@@ -20,19 +20,19 @@ export class EffectManager {
 
         // Разлет искр
         const sparks = this.scene.add.particles(x, y, 'spark', {
-            speed: { min: 200, max: 500 },
-            angle: { min: 0, max: 360 },
-            scale: { start: 0.5, end: 0 },
+            speed: { min: 160, max: 350 },
+            angle: { min: 30, max: 70 },
+            scale: { start: 1, end: 0 },
             tint: 0xffaa00, // Оранжевый
             lifespan: 400,
-            gravityY: 800,  // Искры падают вниз
+            gravityY: 300,  // Искры падают вниз
             blendMode: 'ADD',
-            quantity: 15
+            quantity: 40
         });
         sparks.explode();
 
         // Тряска экрана (Juice!)
-        this.scene.cameras.main.shake(150, 0.01);
+        this.scene.cameras.main.shake(150, 0.04);
 
         // Очистка
         this.cleanup([burst, sparks], 1000);
