@@ -1,63 +1,113 @@
-// src/managers/EffectManager.js
+// Файл: src/managers/EffectManager.js
 
 export class EffectManager {
     constructor(scene) {
         this.scene = scene;
     }
 
-    // Эффект физического удара (Искры и осколки)
+    // ⚔️ ФИЗИЧЕСКИЙ УДАР (Резкий, быстрый)
     playHit(x, y) {
-        // Создаем эмиттер (источник частиц)
-        const emitter = this.scene.add.particles(x, y, 'flare', {
-            speed: { min: 150, max: 350 },  // Скорость разлета
-            angle: { min: 0, max: 360 },    // Во все стороны
-            scale: { start: 0.5, end: 0 },  // От 0.5 до исчезновения
-            blendMode: 'ADD',               // Режим наложения (для свечения)
-            lifespan: 300,                  // Живут 0.3 секунды
-            gravityY: 500,                  // Падают вниз
-            quantity: 10,                   // Количество частиц за раз
-            emitting: false                 // Не сыпать постоянно!
+        // Вспышка
+        const burst = this.scene.add.particles(x, y, 'flare', {
+            speed: { min: 50, max: 150 },
+            scale: { start: 2, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: 200,
+            blendMode: 'ADD',
+            quantity: 1
         });
+        burst.explode();
 
-        // БАБАХ! (Выпускаем 10-15 частиц единоразово)
-        emitter.explode(15);
-
-        // ВАЖНО: Удаляем эмиттер через секунду, чтобы память не забивалась
-        this.scene.time.delayedCall(1000, () => {
-            emitter.destroy();
-        });
-    }
-
-    // Эффект лечения (Зеленые крестики или пузырьки, летящие вверх)
-    playHeal(x, y) {
-        const emitter = this.scene.add.particles(x, y, 'flare', {
-            speed: { min: 50, max: 100 },
-            angle: { min: 250, max: 290 }, // Строго вверх (угол ~270)
-            scale: { start: 0.4, end: 0.8 },
-            alpha: { start: 1, end: 0 },   // Исчезают прозрачностью
-            tint: 0x00ff00,                // ЗЕЛЕНЫЙ ЦВЕТ
-            lifespan: 800,
-            quantity: 5,
-            emitting: false
-        });
-
-        emitter.explode(10);
-        
-        this.scene.time.delayedCall(1500, () => emitter.destroy());
-    }
-
-    // Эффект получения щита (Синяя вспышка)
-    playBlock(x, y) {
-        const emitter = this.scene.add.particles(x, y, 'flare', {
-            speed: 50,
-            scale: { start: 1, end: 2 },   // Резко расширяется
-            alpha: { start: 0.8, end: 0 },
-            tint: 0x00ffff,                // ГОЛУБОЙ
+        // Разлет искр
+        const sparks = this.scene.add.particles(x, y, 'spark', {
+            speed: { min: 200, max: 500 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.5, end: 0 },
+            tint: 0xffaa00, // Оранжевый
             lifespan: 400,
-            emitting: false
+            gravityY: 800,  // Искры падают вниз
+            blendMode: 'ADD',
+            quantity: 15
+        });
+        sparks.explode();
+
+        // Тряска экрана (Juice!)
+        this.scene.cameras.main.shake(150, 0.01);
+
+        // Очистка
+        this.cleanup([burst, sparks], 1000);
+    }
+
+    // 🛡️ БЛОК (Силовое поле)
+    playBlock(x, y) {
+        // Расширяющееся кольцо (иллюзия через частицы)
+        const shield = this.scene.add.particles(x, y, 'flare', {
+            speed: 100,
+            lifespan: 500,
+            scale: { start: 1, end: 0 },
+            alpha: { start: 0.8, end: 0 },
+            tint: 0x00ffff, // Голубой
+            blendMode: 'ADD',
+            quantity: 10
+        });
+        shield.explode();
+
+        this.cleanup([shield], 1000);
+    }
+
+    // ❤️ ЛЕЧЕНИЕ (Мягкое, вверх)
+    playHeal(x, y) {
+        const hearts = this.scene.add.particles(x, y, 'flare', {
+            speedY: { min: -50, max: -100 }, // Летят вверх
+            speedX: { min: -20, max: 20 },
+            scale: { start: 0.5, end: 1 },
+            alpha: { start: 0.6, end: 0 },
+            tint: 0x00ff00, // Зеленый
+            lifespan: 1000,
+            quantity: 8,
+            frequency: 100, // Вылетают не сразу, а очередью
+            stopAfter: 8
         });
 
-        emitter.explode(1); // Одна большая вспышка
-        this.scene.time.delayedCall(1000, () => emitter.destroy());
+        this.cleanup([hearts], 2000);
+    }
+
+    // ☠️ ЯД (Капает вниз, пузырится)
+    playPoison(x, y) {
+        const bubbles = this.scene.add.particles(x, y - 40, 'drop', {
+            speedY: { min: 50, max: 150 }, // Падают вниз
+            speedX: { min: -10, max: 10 },
+            scale: { start: 0.8, end: 0 },
+            color: [0x00aa00, 0x88ff00], // От темно-зеленого к светлому
+            lifespan: 800,
+            quantity: 10,
+            gravityY: 200
+        });
+        bubbles.explode();
+        
+        this.cleanup([bubbles], 1500);
+    }
+
+    // 💪 БАФФ (Сила/Энергия - свечение снизу вверх)
+    playBuff(x, y) {
+        const glow = this.scene.add.particles(x, y + 40, 'spark', {
+            speedY: { min: -100, max: -200 },
+            scale: { start: 0.5, end: 2 },
+            alpha: { start: 1, end: 0 },
+            tint: 0xff4400, // Красный/Огненный
+            lifespan: 800,
+            blendMode: 'ADD',
+            quantity: 12
+        });
+        glow.explode();
+        
+        this.cleanup([glow], 1500);
+    }
+
+    // Вспомогательный метод для удаления эмиттеров
+    cleanup(emitters, delay) {
+        this.scene.time.delayedCall(delay, () => {
+            emitters.forEach(e => e.destroy());
+        });
     }
 }
