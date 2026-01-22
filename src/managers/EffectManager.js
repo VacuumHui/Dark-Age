@@ -20,14 +20,14 @@ export class EffectManager {
 
         // Разлет искр
         const sparks = this.scene.add.particles(x, y, 'spark', {
-            speed: { min: 160, max: 350 },
-            angle: { min: 0, max: 90 },
+            speed: { min: 190, max: 350 },
+            angle: { min: 10, max: 170 },
             scale: { start: 1, end: 0 },
             tint: 0xffaa00, // Оранжевый
-            lifespan: 400,
-            gravityY: 300,  // Искры падают вниз
+            lifespan: 500,
+            gravityY: 200,  // Искры падают вниз
             blendMode: 'ADD',
-            quantity: 40
+            quantity: 70
         });
         sparks.explode();
 
