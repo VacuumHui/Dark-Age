@@ -21,7 +21,7 @@ export class EffectManager {
         // Разлет искр
         const sparks = this.scene.add.particles(x, y, 'spark', {
             speed: { min: 230, max: 400 },
-            angle: { min: 20, max: 165},
+            angle: { min: 310, max: 30 },
             scale: { start: 1, end: 0 },
             tint: 0xffaa00, // Оранжевый
             lifespan: 500,
