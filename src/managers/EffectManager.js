@@ -25,7 +25,7 @@ export class EffectManager {
             scale: { start: 1, end: 0 },
             tint: 0xffaa00, // Оранжевый
             lifespan: 500,
-            gravityY: 0,  // Искры падают вниз
+            gravityY: 100,  // Искры падают вниз
             blendMode: 'ADD',
             quantity: 70
         });
