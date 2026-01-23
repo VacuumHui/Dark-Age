@@ -54,8 +54,8 @@ export class BattleScene extends Phaser.Scene {
         this.hand = [];
         this.activeStack = [];
 
-        this.mana = this.maxMana;
         this.maxMana = GameState.maxMana || 3;
+        this.mana = this.maxMana;
 
         // 4. Отрисовка
         this.ui.createHUD(GW, GH);
