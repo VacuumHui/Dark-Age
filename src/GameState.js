@@ -15,6 +15,7 @@ export const GameState = {
     currentHp: 50,
     gold: 100,
     maxMana: 3,
+    eventFightBonusGold: 0,
     
     mapData: null,
     currentFloor: 0,
