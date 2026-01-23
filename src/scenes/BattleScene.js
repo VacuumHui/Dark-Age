@@ -124,7 +124,6 @@ export class BattleScene extends Phaser.Scene {
         this.updateGlobalUI();
     }
 
-    // ВОТ ЭТОТ МЕТОД:
     consumeCard(card) {
         this.hand = this.hand.filter(c => c !== card);
         
@@ -304,6 +303,10 @@ export class BattleScene extends Phaser.Scene {
         GameState.currentHp = this.player.hp;
         GameState.level++;
         GameState.gold += 20;
+        if (GameState.eventFightBonusGold > 0) {
+            GameState.gold += GameState.eventFightBonusGold;
+            GameState.eventFightBonusGold = 0;
+        }
         this.updateGlobalUI();
 
         const enemyData = ENEMIES_DB[this.enemyKey];
