@@ -28,29 +28,36 @@ export const ACTIONS = {
     },
 
     heal: (scene, action, source, target) => {
-        if (target && target.heal) {
-            target.heal(action.value);
-            if (scene.effectManager) scene.effectManager.playHeal(target.x, target.y);
+        const actualTarget = target || scene.player;
+        if (actualTarget && actualTarget.heal) {
+            actualTarget.heal(action.value);
+            if (scene.effectManager) scene.effectManager.playHeal(actualTarget.x, actualTarget.y);
+        } else {
+            GameState.currentHp = Math.min(GameState.maxHp, GameState.currentHp + action.value);
+            if (scene.game && scene.game.events) scene.game.events.emit('UPDATE_UI');
         }
     },
 
     apply_status: (scene, action, source, target) => {
-        if (scene.statusManager) {
-            scene.statusManager.applyStatus(target, action.status, action.value);
-            
-            if (scene.effectManager) {
-                if (action.status === 'poison') scene.effectManager.playPoison(target.x, target.y);
-                if (action.status === 'strength' || action.status === 'rage') scene.effectManager.playBuff(target.x, target.y);
-            }
+        if (!target || !scene.statusManager) return;
+        scene.statusManager.applyStatus(target, action.status, action.value);
+        
+        if (scene.effectManager) {
+            if (action.status === 'poison') scene.effectManager.playPoison(target.x, target.y);
+            if (action.status === 'strength' || action.status === 'rage') scene.effectManager.playBuff(target.x, target.y);
         }
     },
 
     restore_mana: (scene, action, source, target) => {
+        if (typeof scene.mana !== 'number' || typeof scene.maxMana !== 'number') return;
         scene.mana += action.value;
         if (scene.mana > scene.maxMana) scene.mana = scene.maxMana;
-        scene.updateManaUI();
-        if (scene.effectManager) scene.effectManager.playBuff(source.x, source.y);
-        if (target) scene.ui.showFloatingText(target.x, target.y - 60, `+${action.value} Mana`, 0x00ffff);
+        if (scene.updateManaUI) scene.updateManaUI();
+        if (scene.effectManager && source) scene.effectManager.playBuff(source.x, source.y);
+        const displayTarget = target || source || scene.player;
+        if (displayTarget && scene.ui && scene.ui.showFloatingText) {
+            scene.ui.showFloatingText(displayTarget.x, displayTarget.y - 60, `+${action.value} Mana`, 0x00ffff);
+        }
     },
 
     draw: (scene, action, source, target) => {
@@ -59,7 +66,7 @@ export const ACTIONS = {
         } else {
             scene.drawCards(action.value);
         }
-        if (target) {
+        if (target && scene.ui && scene.ui.showFloatingText) {
             scene.ui.showFloatingText(target.x, target.y - 80, `Draw +${action.value}`, 0xffffff);
         }
     },
@@ -81,11 +88,19 @@ export const ACTIONS = {
 
     increase_max_mana: (scene, action, source, target) => {
         GameState.maxMana += action.value;
-        scene.maxMana = GameState.maxMana;
-        scene.mana += action.value; 
-        scene.updateManaUI();
-        if (scene.effectManager) scene.effectManager.playBuff(source.x, source.y);
-        scene.ui.showFloatingText(source.x, source.y - 80, `MAX MANA UP!`, 0x00aaff);
+        if (typeof scene.maxMana === 'number') {
+            scene.maxMana = GameState.maxMana;
+            if (typeof scene.mana === 'number') {
+                scene.mana = Math.min(scene.mana + action.value, scene.maxMana);
+            }
+            if (scene.updateManaUI) scene.updateManaUI();
+        }
+        if (scene.effectManager && source) scene.effectManager.playBuff(source.x, source.y);
+        if (scene.ui && scene.ui.showFloatingText && source) {
+            scene.ui.showFloatingText(source.x, source.y - 80, `MAX MANA UP!`, 0x00aaff);
+        } else if (scene.game && scene.game.events) {
+            scene.game.events.emit('UPDATE_UI');
+        }
     }
 };
 
