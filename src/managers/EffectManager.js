@@ -3,6 +3,7 @@
 export class EffectManager {
     constructor(scene) {
         this.scene = scene;
+        this.ensureParticleTextures();
     }
 
     // ⚔️ ФИЗИЧЕСКИЙ УДАР (С НАПРАВЛЕНИЕМ)
@@ -12,6 +13,7 @@ export class EffectManager {
             speed: { min: 50, max: 150 },
             scale: { start: 2, end: 0 },
             alpha: { start: 1, end: 0 },
+            tint: 0xffaa00,
             lifespan: 200,
             blendMode: 'ADD',
             quantity: 1
@@ -106,6 +108,31 @@ export class EffectManager {
         this.cleanup([glow], 1500);
     }
 
+    ensureParticleTextures() {
+        this.ensureTexture('flare', (graphics) => {
+            graphics.fillCircle(4, 4, 4);
+            graphics.generateTexture('flare', 8, 8);
+        });
+
+        this.ensureTexture('spark', (graphics) => {
+            graphics.fillRect(0, 0, 6, 2);
+            graphics.generateTexture('spark', 6, 2);
+        });
+
+        this.ensureTexture('drop', (graphics) => {
+            graphics.fillCircle(3, 3, 3);
+            graphics.generateTexture('drop', 6, 6);
+        });
+    }
+
+    ensureTexture(key, draw) {
+        if (this.scene.textures.exists(key)) return;
+        const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+        graphics.fillStyle(0xffffff, 1);
+        draw(graphics);
+        graphics.destroy();
+    }
+    
     cleanup(emitters, delay) {
         this.scene.time.delayedCall(delay, () => {
             emitters.forEach(e => e.destroy());
