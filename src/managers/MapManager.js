@@ -115,28 +115,28 @@ for (let x = 0; x < this.floors; x++) {
 
 globalThis.MapManager = MapManager;
   
-+export class MapManager {
-+    constructor() {
-+        this.floors = 12;
-+        this.nodeTypes = [
-+            { type: 'battle', weight: 50 },
-+            { type: 'event', weight: 25 },
-+            { type: 'shop', weight: 10 },
-+            { type: 'rest', weight: 15 }
-+        ];
-+    }
-+
-+    generateMap() {
-+        const map = [];
-+
-+        // 1. Генерация этажей
-+        for (let x = 0; x < this.floors; x++) {
-+            const layer = [];
-+            let count;
-+            if (x === 0 || x === this.floors - 1) count = 1;
-+            else if (x === this.floors - 2) count = 2;
-+            else count = Math.floor(Math.random() * 3) + 3;
-+
+export class MapManager {
+    constructor() {
+        this.floors = 12;
+        this.nodeTypes = [
+            { type: 'battle', weight: 50 },
+            { type: 'event', weight: 25 },
+            { type: 'shop', weight: 10 },
+            { type: 'rest', weight: 15 }
+        ];
+    }
+
+    generateMap() {
+        const map = [];
+
+        // 1. Генерация этажей
+        for (let x = 0; x < this.floors; x++) {
+            const layer = [];
+           let count;
+            if (x === 0 || x === this.floors - 1) count = 1;
+            else if (x === this.floors - 2) count = 2;
+            else count = Math.floor(Math.random() * 3) + 3;
+
 +            const offsetY = (5 - count) / 2;
 +
 +            for (let i = 0; i < count; i++) {
