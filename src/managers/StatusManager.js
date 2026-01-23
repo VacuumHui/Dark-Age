@@ -75,7 +75,7 @@ export class StatusManager {
 
     checkTurnSkip(unit) {
         if (unit.statuses['freeze'] > 0) {
-            const chance = 0.5; 
+            const chance = 0.4; 
             
             if (Math.random() < chance) {
                 // ИСПРАВЛЕНО
