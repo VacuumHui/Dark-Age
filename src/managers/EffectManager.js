@@ -5,106 +5,107 @@ export class EffectManager {
         this.scene = scene;
     }
 
-    // ⚔️ ФИЗИЧЕСКИЙ УДАР (Резкий, быстрый)
-    playHit(x, y) {
-        // Вспышка
+    // ⚔️ ФИЗИЧЕСКИЙ УДАР (С НАПРАВЛЕНИЕМ)
+    playHit(x, y, isTargetPlayer) {
+        // 1. Вспышка (Взрыв на месте)
         const burst = this.scene.add.particles(x, y, 'flare', {
-            speed: { min: 80, max: 110 },
-            scale: { start: 3, end: 0 },
+            speed: { min: 50, max: 150 },
+            scale: { start: 2, end: 0 },
             alpha: { start: 1, end: 0 },
-            lifespan: 500,
+            lifespan: 200,
             blendMode: 'ADD',
             quantity: 1
         });
         burst.explode();
 
-        // Разлет искр
+        // 2. Искры (Летят конусом за спину жертвы)
+        
+        // Логика углов:
+        // Если бьем Игрока (он слева) -> Искры летят ВЛЕВО (120...240 градусов)
+        // Если бьем Врага (он справа) -> Искры летят ВПРАВО (-60...60 градусов)
+        
+        const minAngle = isTargetPlayer ? 120 : -60;
+        const maxAngle = isTargetPlayer ? 240 : 60;
+
         const sparks = this.scene.add.particles(x, y, 'spark', {
-            speed: { min: 400, max: 600 },
-            angle: { min: -70, max: 70 },
-            scale: { start: 1, end: 0 },
-            tint: 0xffaa00, // Оранжевый
-            lifespan: 500,
-            gravityY: 100,  // Искры падают вниз
+            speed: { min: 300, max: 600 }, // Быстрый разлет
+            angle: { min: minAngle, max: maxAngle }, // НАПРАВЛЕННЫЙ КОНУС
+            scale: { start: 0.6, end: 0 },
+            tint: 0xffaa00,
+            lifespan: 350,
+            gravityY: 500, // Немного падают вниз
             blendMode: 'ADD',
-            quantity: 70
+            quantity: 20
         });
         sparks.explode();
 
-        // Тряска экрана (Juice!)
-        this.scene.cameras.main.shake(150, 0.04);
+        // Тряска
+        this.scene.cameras.main.shake(150, 0.01);
 
-        // Очистка
         this.cleanup([burst, sparks], 1000);
     }
 
-    // 🛡️ БЛОК (Силовое поле)
+    // 🛡️ БЛОК
     playBlock(x, y) {
-        // Расширяющееся кольцо (иллюзия через частицы)
         const shield = this.scene.add.particles(x, y, 'flare', {
             speed: 100,
             lifespan: 500,
             scale: { start: 1, end: 0 },
             alpha: { start: 0.8, end: 0 },
-            tint: 0x00ffff, // Голубой
+            tint: 0x00ffff,
             blendMode: 'ADD',
             quantity: 10
         });
         shield.explode();
-
         this.cleanup([shield], 1000);
     }
 
-    // ❤️ ЛЕЧЕНИЕ (Мягкое, вверх)
+    // ❤️ ЛЕЧЕНИЕ
     playHeal(x, y) {
         const hearts = this.scene.add.particles(x, y, 'flare', {
-            speedY: { min: -50, max: -100 }, // Летят вверх
+            speedY: { min: -50, max: -100 },
             speedX: { min: -20, max: 20 },
             scale: { start: 0.5, end: 1 },
             alpha: { start: 0.6, end: 0 },
-            tint: 0x00ff00, // Зеленый
+            tint: 0x00ff00,
             lifespan: 1000,
             quantity: 8,
-            frequency: 100, // Вылетают не сразу, а очередью
+            frequency: 100,
             stopAfter: 8
         });
-
         this.cleanup([hearts], 2000);
     }
 
-    // ☠️ ЯД (Капает вниз, пузырится)
+    // ☠️ ЯД
     playPoison(x, y) {
         const bubbles = this.scene.add.particles(x, y - 40, 'drop', {
-            speedY: { min: 50, max: 150 }, // Падают вниз
+            speedY: { min: 50, max: 150 },
             speedX: { min: -10, max: 10 },
             scale: { start: 0.8, end: 0 },
-            color: [0x00aa00, 0x88ff00], // От темно-зеленого к светлому
+            color: [0x00aa00, 0x88ff00],
             lifespan: 800,
             quantity: 10,
             gravityY: 200
         });
         bubbles.explode();
-        
         this.cleanup([bubbles], 1500);
     }
 
-    // 💪 БАФФ (Сила/Энергия - свечение снизу вверх)
+    // 💪 БАФФ
     playBuff(x, y) {
         const glow = this.scene.add.particles(x, y + 40, 'spark', {
             speedY: { min: -100, max: -200 },
             scale: { start: 0.5, end: 2 },
             alpha: { start: 1, end: 0 },
-            tint: 0xff4400, // Красный/Огненный
+            tint: 0xff4400,
             lifespan: 800,
             blendMode: 'ADD',
             quantity: 12
         });
         glow.explode();
-        
         this.cleanup([glow], 1500);
     }
 
-    // Вспомогательный метод для удаления эмиттеров
     cleanup(emitters, delay) {
         this.scene.time.delayedCall(delay, () => {
             emitters.forEach(e => e.destroy());
