@@ -28,67 +28,42 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
 
-        if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
+        if (!this.scene.isActive('UIScene')) {
+            this.scene.launch('UIScene');
+        }
 
-        // --- 1. ГЕНЕРАЦИЯ ТЕКСТУР ДЛЯ ЭФФЕКТОВ ---
-        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-
-        // 1. Flare (Мягкий круг - для света)
         if (!this.textures.exists('flare')) {
-            graphics.clear();
+            const graphics = this.make.graphics({ x: 0, y: 0, add: false });
             graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(8, 8, 8);
-            graphics.generateTexture('flare', 16, 16);
-        }
-
-        // 2. Spark (Ромб - для ударов)
-        if (!this.textures.exists('spark')) {
-            graphics.clear();
-            graphics.fillStyle(0xffffff, 1);
-            graphics.beginPath();
-            graphics.moveTo(8, 0);
-            graphics.lineTo(16, 8);
-            graphics.lineTo(8, 16);
-            graphics.lineTo(0, 8);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.generateTexture('spark', 16, 16);
-        }
-
-        // 3. Drop (Капля - для яда/крови)
-        if (!this.textures.exists('drop')) {
-            graphics.clear();
-            graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(6, 6, 6);
-            graphics.generateTexture('drop', 12, 12);
+            graphics.fillCircle(4, 4, 4);
+            graphics.generateTexture('flare', 8, 8);
         }
         
+        // 2. Инициализация менеджеров
         this.ui = new BattleUIManager(this);
         this.handManager = new HandManager(this);
+        
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
-        // Ресурсы
+        // 3. Данные
+        this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
+        this.discardPile = [];
+        this.hand = [];
+        this.activeStack = [];
+
         this.mana = 3;
         this.maxMana = GameState.maxMana || 3;
 
-        // UI
+        // 4. Отрисовка
         this.ui.createHUD(GW, GH);
         this.ui.createRelicUI(); 
         this.updateManaUI();
 
-        // Юниты
+        // 5. Юниты
         this.player = new Unit(this, GW * 0.25, GH * 0.45, null, true);
-        
-        // --- !!! ЗАЩИТА ОТ БАГА С 0 ХП !!! ---
-        if (GameState.currentHp <= 0) {
-            console.warn("Emergency Heal Activated!");
-            GameState.currentHp = 50; // Насильно лечим
-        }
-        // -------------------------------------
-        
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
         this.player.updateUI();
@@ -96,15 +71,18 @@ export class BattleScene extends Phaser.Scene {
 
         this.startNewBattle(this.enemyKey);
 
+        // Триггеры
         this.relicManager.trigger('onBattleStart');
         this.updateGlobalUI();
 
-        // Старт: сбрасываем руку и берем 5 карт
-        this.handManager.hand = []; 
+        // 6. Старт
         this.handManager.drawCards(5);
         this.handManager.setupInput();
         
-        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85).setVisible(false).setDepth(900).setInteractive();
+        // Затемнение
+        this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85)
+            .setVisible(false).setDepth(900).setInteractive();
+            
         this.dimmer.on('pointerdown', () => {
             if (this.zoomedCard) this.unzoomCard();
             else if (this.ui.deckContainer && this.ui.deckContainer.visible) this.ui.closeDeckView();
@@ -121,8 +99,74 @@ export class BattleScene extends Phaser.Scene {
         this.isBattleActive = true;
     }
 
-    // --- МОСТЫ ---
-    spendMana(amount) { this.mana -= amount; this.updateManaUI(); }
+    // =========================================================
+    // БЛОК 1: КАРТЫ И МАНА
+    // =========================================================
+
+    playCard(card, target) {
+        const computedData = getComputedCard(card.cardInstance);
+        
+        if (computedData.actions) { 
+            computedData.actions.forEach(action => { 
+                let finalTarget = target;
+                if (action.target === 'self') finalTarget = this.player;
+                executeAction(this, action, this.player, finalTarget); 
+            }); 
+        }
+
+        this.spendMana(computedData.cost);
+
+        if (computedData.consume) {
+            this.consumeCard(card);
+        } else {
+            this.discardCard(card);
+        }
+        
+        this.updateGlobalUI();
+    }
+
+    // ВОТ ЭТОТ МЕТОД:
+    consumeCard(card) {
+        this.hand = this.hand.filter(c => c !== card);
+        
+        // Удаляем из ГЛОБАЛЬНОЙ колоды по UID
+        const index = GameState.deck.findIndex(c => c.uid === card.cardInstance.uid);
+        if (index > -1) {
+            GameState.deck.splice(index, 1);
+            console.log("Card consumed:", card.cardData.name);
+        }
+
+        this.tweens.add({
+            targets: card,
+            alpha: 0, scale: 0, angle: 360, duration: 600,
+            onComplete: () => { 
+                card.destroy(); 
+                this.updateDeckUI(); 
+                this.handManager.rearrangeHand(); 
+            }
+        });
+    }
+
+    discardCard(card) {
+        this.discardPile.push(card.cardInstance);
+        this.hand = this.hand.filter(c => c !== card);
+        this.tweens.add({ 
+            targets: card, 
+            x: this.ui.trashZone.x, y: this.ui.trashZone.y, 
+            alpha: 0, scale: 0.1, duration: 300, 
+            onComplete: () => { card.destroy(); this.handManager.rearrangeHand(); } 
+        });
+        this.updateDeckUI();
+    }
+
+    // =========================================================
+    // БЛОК 2: МОСТЫ (Bridges)
+    // =========================================================
+
+    spendMana(amount) { 
+        this.mana -= amount; 
+        this.updateManaUI(); 
+    }
 
     updateManaUI() {
         this.ui.updateMana(this.mana, this.maxMana);
@@ -130,7 +174,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     updateGlobalUI() {
-        if (this.player) GameState.currentHp = this.player.hp;
+        if (this.player) {
+            GameState.currentHp = this.player.hp;
+        }
         this.game.events.emit('UPDATE_UI');
     }
 
@@ -175,18 +221,25 @@ export class BattleScene extends Phaser.Scene {
         }});
     }
 
-    // --- ЛОГИКА ХОДА (FIXED) ---
+    // =========================================================
+    // БЛОК 3: ЛОГИКА ХОДА
+    // =========================================================
 
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
 
         // 1. Ход Врага
-        if (this.statusManager) this.statusManager.onTurnStart(this.enemy); 
+        if (this.statusManager) {
+            this.statusManager.onTurnStart(this.enemy); 
+        }
+        
         this.enemy.resetShield();
 
         let skipEnemyTurn = false;
-        if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        if (this.statusManager) {
+            skipEnemyTurn = this.statusManager.checkTurnSkip(this.enemy);
+        }
 
         if (!skipEnemyTurn) {
             this.enemy.executeIntent(this.player);
@@ -196,13 +249,14 @@ export class BattleScene extends Phaser.Scene {
         
         this.updateGlobalUI();
 
-        if (!this.player.alive) return; // Ждем обработчик смерти
+        if (!this.player.alive) return;
 
-        // 2. Передача хода
+        // 2. Передача хода Игроку
         this.time.delayedCall(1000, () => {
             if (!this.isBattleActive) return;
             
             if (this.statusManager) this.statusManager.onTurnEnd(this.enemy);
+
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
@@ -219,18 +273,15 @@ export class BattleScene extends Phaser.Scene {
             this.mana = this.maxMana; 
             this.updateManaUI();
             
-            // --- ДОБОР КАРТ (FIXED) ---
-            const cardsInHand = this.handManager.hand.length;
-            const cardsNeeded = 5 - cardsInHand;
-            
-            // Добираем только если меньше 5
-            if (cardsNeeded > 0) {
-                this.handManager.drawCards(cardsNeeded);
-            } else {
-                this.handManager.rearrangeHand();
-            }
+            const cardsNeeded = 5 - this.handManager.hand.length;
+            if (cardsNeeded > 0) this.handManager.drawCards(cardsNeeded);
+            else this.handManager.rearrangeHand();
         });
     }
+
+    // =========================================================
+    // БЛОК 4: СОБЫТИЯ
+    // =========================================================
 
     handleUnitDeath(unit) {
         this.updateGlobalUI();
@@ -266,6 +317,7 @@ export class BattleScene extends Phaser.Scene {
         }
 
         const rewardKeys = this.rewardManager.getRewardOptions(3);
+        
         this.ui.showVictoryScreen(
             rewardKeys,
             (cardKey) => {
