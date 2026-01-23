@@ -39,9 +39,7 @@ export class RewardManager {
         const rand = Math.random() * 100; // 0..100
         
         if (rand < 5) return 'legendary';  // 5% шанс (0-5)
-        if (rand < 40) return 'rare';      // 30% шанс (10-40)
         if (rand < 30) return 'rare';      // 25% шанс (5-30)
-        return 'common';                   // 60% шанс (40-100)
         return 'common';                   // 70% шанс (30-100)
     }
 }
