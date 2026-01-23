@@ -72,6 +72,9 @@ export class EventScene extends Phaser.Scene {
         }
         
         if (choice.action === 'fight') {
+            if (choice.fightBonusGold) {
+                GameState.eventFightBonusGold = choice.fightBonusGold;
+            }
             this.scene.start('BattleScene');
             return;
         }
