@@ -9,18 +9,20 @@ export const ACTIONS = {
             if (scene.statusManager) {
                 dmg = scene.statusManager.calculateDamage(source, target, dmg);
             }
-            // Передаем source для шипов
+            // Урон + Шипы
             target.takeDamage(dmg, source);
             
-            // ЭФФЕКТ УДАРА
-            if (scene.effectManager) scene.effectManager.playHit(target.x, target.y);
+            // ЭФФЕКТ УДАРА С НАПРАВЛЕНИЕМ
+            // Передаем true, если цель - игрок, false если враг
+            if (scene.effectManager) {
+                scene.effectManager.playHit(target.x, target.y, target.isPlayer);
+            }
         }
     },
 
     block: (scene, action, source, target) => {
         if (target && target.addShield) {
             target.addShield(action.value);
-            // ЭФФЕКТ ЩИТА
             if (scene.effectManager) scene.effectManager.playBlock(target.x, target.y);
         }
     },
@@ -28,7 +30,6 @@ export const ACTIONS = {
     heal: (scene, action, source, target) => {
         if (target && target.heal) {
             target.heal(action.value);
-            // ЭФФЕКТ ЛЕЧЕНИЯ
             if (scene.effectManager) scene.effectManager.playHeal(target.x, target.y);
         }
     },
@@ -37,7 +38,6 @@ export const ACTIONS = {
         if (scene.statusManager) {
             scene.statusManager.applyStatus(target, action.status, action.value);
             
-            // СПЕЦИАЛЬНЫЕ ЭФФЕКТЫ ДЛЯ СТАТУСОВ
             if (scene.effectManager) {
                 if (action.status === 'poison') scene.effectManager.playPoison(target.x, target.y);
                 if (action.status === 'strength' || action.status === 'rage') scene.effectManager.playBuff(target.x, target.y);
@@ -49,9 +49,7 @@ export const ACTIONS = {
         scene.mana += action.value;
         if (scene.mana > scene.maxMana) scene.mana = scene.maxMana;
         scene.updateManaUI();
-        // Эффект баффа (мана)
         if (scene.effectManager) scene.effectManager.playBuff(source.x, source.y);
-        
         if (target) scene.ui.showFloatingText(target.x, target.y - 60, `+${action.value} Mana`, 0x00ffff);
     },
 
@@ -74,7 +72,7 @@ export const ACTIONS = {
             scene.player.maxHp = GameState.maxHp;
             scene.player.hp = GameState.currentHp;
             scene.player.updateUI();
-            scene.effectManager.playHeal(scene.player.x, scene.player.y); // Эффект
+            scene.effectManager.playHeal(scene.player.x, scene.player.y);
             scene.ui.showFloatingText(scene.player.x, scene.player.y - 60, `Max HP +${action.value}`, 0x00ff00);
         } else {
             scene.game.events.emit('UPDATE_UI');
@@ -86,7 +84,7 @@ export const ACTIONS = {
         scene.maxMana = GameState.maxMana;
         scene.mana += action.value; 
         scene.updateManaUI();
-        scene.effectManager.playBuff(source.x, source.y); // Эффект
+        if (scene.effectManager) scene.effectManager.playBuff(source.x, source.y);
         scene.ui.showFloatingText(source.x, source.y - 80, `MAX MANA UP!`, 0x00aaff);
     }
 };
