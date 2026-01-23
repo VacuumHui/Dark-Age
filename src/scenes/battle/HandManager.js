@@ -48,7 +48,8 @@ export class HandManager {
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.scene.player;
+                const actionTarget = action.target || computedData.target;
+                if (actionTarget === 'self') finalTarget = this.scene.player;
                 executeAction(this.scene, action, this.scene.player, finalTarget); 
             }); 
         }
@@ -301,7 +302,8 @@ export class HandManager {
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.scene.player;
+                const actionTarget = action.target || computedData.target;
+                if (actionTarget === 'self') finalTarget = this.scene.player;
                 executeAction(this.scene, action, this.scene.player, finalTarget); 
             }); 
         }
