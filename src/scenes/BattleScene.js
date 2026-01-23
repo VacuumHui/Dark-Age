@@ -54,7 +54,7 @@ export class BattleScene extends Phaser.Scene {
         this.hand = [];
         this.activeStack = [];
 
-        this.mana = 3;
+        this.mana = this.maxMana;
         this.maxMana = GameState.maxMana || 3;
 
         // 4. Отрисовка
@@ -114,7 +114,8 @@ export class BattleScene extends Phaser.Scene {
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
                 let finalTarget = target;
-                if (action.target === 'self') finalTarget = this.player;
+                const actionTarget = action.target || computedData.target;
+                if (actionTarget === 'self') finalTarget = this.player;
                 executeAction(this, action, this.player, finalTarget); 
             }); 
         }
