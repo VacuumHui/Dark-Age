@@ -38,12 +38,12 @@ export class RelicManager {
         else if (action.target === 'enemy') targetUnit = this.scene.enemy;
         
         // Спецэффект: Показать имя реликвии, которая сработала
-        if (targetUnit) {
+        if (targetUnit && this.scene.showFloatingText) {
             this.scene.showFloatingText(targetUnit.x, targetUnit.y - 120, `${relicName}!`, 0xffd700);
             
             // Делегируем выполнение в ActionManager (он уже всё умеет!)
-            // source = player (реликвии принадлежат игроку)
-            executeAction(this.scene, action, this.scene.player, targetUnit);
+        // source = player (реликвии принадлежат игроку)
+        executeAction(this.scene, action, this.scene.player, targetUnit);
         }
     }
 
