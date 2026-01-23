@@ -31,13 +31,6 @@ export class BattleScene extends Phaser.Scene {
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
-
-        if (!this.textures.exists('flare')) {
-            const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-            graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(4, 4, 4);
-            graphics.generateTexture('flare', 8, 8);
-        }
         
         // 2. Инициализация менеджеров
         this.ui = new BattleUIManager(this);
