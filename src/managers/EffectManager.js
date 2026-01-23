@@ -11,7 +11,7 @@ export class EffectManager {
         // 1. Вспышка (Взрыв на месте)
         const burst = this.scene.add.particles(x, y, 'flare', {
             speed: { min: 50, max: 150 },
-            scale: { start: 2, end: 0 },
+            scale: { start: 5, end: 0 },
             alpha: { start: 1, end: 0 },
             tint: 0xffaa00,
             lifespan: 200,
