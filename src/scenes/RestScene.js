@@ -102,7 +102,7 @@ export class RestScene extends Phaser.Scene {
         for (let i = 0; i < count; i++) {
             const rand = Math.random();
             let selectedRarity = 'common';
-            if (rand < 0.10) selectedRarity = 'legendary'; else if (rand < 0.40) selectedRarity = 'rare';
+            if (rand < 0.05) selectedRarity = 'legendary'; else if (rand < 0.30) selectedRarity = 'rare';
             let pickPool = pool[selectedRarity].length > 0 ? pool[selectedRarity] : pool['common'];
             const pick = pickPool[Math.floor(Math.random() * pickPool.length)];
             keys.push(pick);
