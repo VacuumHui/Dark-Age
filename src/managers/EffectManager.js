@@ -32,12 +32,12 @@ export class EffectManager {
         const sparks = this.scene.add.particles(x, y, 'spark', {
             speed: { min: 300, max: 600 }, // Быстрый разлет
             angle: { min: minAngle, max: maxAngle }, // НАПРАВЛЕННЫЙ КОНУС
-            scale: { start: 0.6, end: 0 },
+            scale: { start: 2, end: 0 },
             tint: 0xffaa00,
             lifespan: 350,
             gravityY: 500, // Немного падают вниз
             blendMode: 'ADD',
-            quantity: 20
+            quantity: 50
         });
         sparks.explode();
 
