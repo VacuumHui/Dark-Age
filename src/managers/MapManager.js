@@ -1,4 +1,4 @@
-class MapManager {
+export class MapManager {
     constructor() {
         this.floors = 12;
         this.nodeTypes = [
@@ -112,8 +112,6 @@ for (let x = 0; x < this.floors; x++) {
         });
     }
 }
-
-globalThis.MapManager = MapManager;
   
 
         
