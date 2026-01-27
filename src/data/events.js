@@ -24,21 +24,17 @@
          image: "👺",
          choices: [
              {
--                text: "Ограбить (50% шанс: +50 золота / -10 ХП)",
-+                text: "Ограбить (60% шанс: +50 золота / -10 ХП)",
+                text: "Ограбить (60% шанс: +50 золота / -10 ХП)",
                  action: "steal_gold",
--                chance: 0.5, // 50% успеха
-+                chance: 0.6, // 60% успеха
+                chance: 0.6, // 60% успеха
                  success: { type: "gold", value: 50 },
                  fail: { type: "damage", value: 10 }
              },
              {
--                text: "Напасть (Начать бой)",
-+                text: "Напасть (Начать бой, +30 золота за победу)",
+                text: "Напасть (Начать бой, +30 золота за победу)",
                  action: "fight",
--                chance: 1.0
-+                chance: 1.0,
-+                fightBonusGold: 30
+               chance: 1.0,
+                fightBonusGold: 30
              },
              {
                  text: "Пройти мимо",
