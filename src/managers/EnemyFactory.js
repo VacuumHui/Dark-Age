@@ -12,15 +12,9 @@
          // Для простоты берем номер комнаты на карте (GameState.currentFloor)
          const difficulty = GameState.currentFloor + 1; // 1..10
  
-         // 2. Рассчитываем множитель (Синусоида + Линейный рост)
--        // Линейно: каждый этаж враги сильнее на 10%
-+        // Линейно: каждый этаж враги сильнее на 8%
-         // Синусоида: каждые 3 этажа скачок сложности, потом спад
-         
--        const linearGrowth = 1 + (difficulty * 0.10); 
--        const wave = Math.sin(difficulty) * 0.2; // Колебание +/- 20%
-+        const linearGrowth = 1 + (difficulty * 0.08); 
-+        const wave = Math.sin(difficulty) * 0.12; // Колебание +/- 12%
+
+       const linearGrowth = 1 + (difficulty * 0.08); 
+        const wave = Math.sin(difficulty) * 0.12; // Колебание +/- 12%
          
          // Итоговый множитель (не может быть меньше 1)
          const multiplier = Math.max(1, linearGrowth + wave);
