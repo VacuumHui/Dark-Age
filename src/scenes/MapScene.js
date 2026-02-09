@@ -8,11 +8,13 @@ export class MapScene extends Phaser.Scene {
     constructor() { super({ key: 'MapScene' }); }
 
     create() {
+        // Запуск UI сцены, если она не запущена
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
         }
         this.game.events.emit('UPDATE_UI');
 
+        // Генерация карты, если её нет
         if (!GameState.mapGenerated) {
             const manager = new MapManager();
             GameState.mapData = manager.generateMap();
@@ -28,9 +30,11 @@ export class MapScene extends Phaser.Scene {
         const mapWidth = startX + (GameState.mapData.length * stepX) + 400;
         const mapHeight = this.scale.height;
 
+        // Настройка камеры
         this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
         this.add.rectangle(0, 0, mapWidth, mapHeight, 0x110f0a).setOrigin(0);
         
+        // Затемнение (для зума/колоды)
         this.dimmer = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85)
             .setOrigin(0)
             .setScrollFactor(0)
@@ -48,6 +52,7 @@ export class MapScene extends Phaser.Scene {
 
         this.zoomedCard = null;
 
+        // Заголовок Акта
         this.add.text(50, 80, `ACT ${GameState.act} MAP`, { fontSize: '40px', color: '#444' }).setScrollFactor(0);
 
         // Кнопка Колоды
@@ -62,7 +67,7 @@ export class MapScene extends Phaser.Scene {
 
         deckBtn.on('pointerdown', () => this.openDeckView());
 
-        // Отрисовка
+        // Отрисовка линий (связей)
         const graphics = this.add.graphics();
         graphics.lineStyle(4, 0x665544);
 
@@ -89,6 +94,7 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
+        // Отрисовка узлов
         GameState.mapData.forEach(layer => {
             layer.forEach(node => {
                 if (!node.visible) return;
@@ -97,11 +103,12 @@ export class MapScene extends Phaser.Scene {
             });
         });
 
+        // Центрирование камеры на текущем этаже
         const currentX = startX + (GameState.currentFloor * stepX);
         const centerX = currentX - (this.scale.width / 2);
         this.cameras.main.scrollX = Math.max(0, centerX);
 
-        // Свайп
+        // Логика свайпа (Drag камеры)
         let isDown = false;
         let startDragX = 0;
         let startCameraX = 0;
@@ -131,10 +138,8 @@ export class MapScene extends Phaser.Scene {
         this.input.on('pointerout', () => { isDown = false; });
     }
 
-    // --- ПРОСМОТР КОЛОДЫ (ИСПРАВЛЕНО) ---
-    
+    // --- ПРОСМОТР КОЛОДЫ ---
     openDeckView() {
-        // --- ВОТ ТУТ БЫЛА ОШИБКА, ДОБАВИЛИ ОПРЕДЕЛЕНИЕ GW и GH ---
         const GW = this.scale.width;
         const GH = this.scale.height;
 
@@ -145,7 +150,6 @@ export class MapScene extends Phaser.Scene {
         this.deckContainer.removeAll(true);
         this.deckContainer.setVisible(true);
         
-        // Включаем затемнение
         this.dimmer.setDepth(999).setVisible(true);
 
         const title = this.add.text(GW/2, 50, "YOUR DECK", { 
@@ -174,7 +178,6 @@ export class MapScene extends Phaser.Scene {
             this.deckContainer.add(card);
         });
 
-        // КНОПКА ЗАКРЫТИЯ (Сразу красивая, как в BattleScene)
         const closeBtnBg = this.add.rectangle(GW/2, GH - 80, 200, 60, 0x990000)
             .setStrokeStyle(2, 0xffffff)
             .setInteractive();
@@ -276,6 +279,7 @@ export class MapScene extends Phaser.Scene {
         return null;
     }
 
+    // --- ОТРИСОВКА УЗЛА (С ФИКСОМ СПАВНА) ---
     drawNode(node, x, y) {
         let color = 0x444444; 
         let stroke = 0x000000;
@@ -311,13 +315,18 @@ export class MapScene extends Phaser.Scene {
                 MapManager.unlockNextLayer(GameState.mapData, node.id);
 
                 if (node.type === 'battle' || node.type === 'start' || node.type === 'boss') {
-                    // Передаем рандомного врага или босса
-                    const isBoss = node.type === 'boss';
-                    const enemy = isBoss 
-                        ? (GameState.bosses[GameState.act] || "boss_dragon")
-                        : (Math.random() > 0.5 ? "slime" : "knight");
-                        
-                    this.scene.start('BattleScene', { enemyKey: enemy });
+                    // --- ФИКС ЗДЕСЬ ---
+                    
+                    let enemyToSpawn = null;
+                    
+                    // Если Босс - передаем ключ Босса
+                    if (node.type === 'boss') {
+                        enemyToSpawn = (GameState.bosses[GameState.act] || "boss_dragon");
+                    }
+                    // Если обычная битва - передаем null.
+                    // Factory сама решит, кого спавнить (отряд).
+                    
+                    this.scene.start('BattleScene', { enemyKey: enemyToSpawn });
                 } 
                 else if (node.type === 'rest') {
                     this.scene.start('RestScene');
@@ -326,7 +335,6 @@ export class MapScene extends Phaser.Scene {
                 } else if (node.type === 'shop') {
                     this.scene.start('ShopScene');
                 } else {
-                    alert("Заглушка: " + node.type);
                     this.scene.start('BattleScene');
                 }
             });
