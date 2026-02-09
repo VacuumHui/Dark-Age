@@ -6,50 +6,63 @@ import { GameState } from '../GameState.js';
  
 export class EnemyFactory {
      
-    // Теперь возвращает МАССИВ врагов
     static createEnemies(scene, enemyKey = null) {
-        const difficulty = GameState.currentFloor + 1; // 1..12
+        // difficulty начинается с 1 (GameState.currentFloor + 1)
+        const difficulty = GameState.currentFloor + 1; 
         const actMultiplier = GameState.act; // 1, 2, 3...
         
-        // Базовый бюджет схватки
-        // Этаж 1: бюджет ~2 (2 слайма или 1 слайм)
-        // Этаж 5: бюджет ~5 (1 рыцарь + 2 слайма)
-        let budget = Math.floor(difficulty * 0.8) + 1 + (actMultiplier - 1) * 2;
-        if (budget < 1) budget = 1;
+        // --- БАЛАНС БЮДЖЕТА ---
+        // difficulty 1 (1 этаж) -> Бюджет 2 (Гарантированно 2 Слайма)
+        // difficulty 2 (2 этаж) -> Бюджет 3 (1 Рыцарь ИЛИ 3 Слайма)
+        let budget = difficulty + 1 + (actMultiplier - 1) * 2;
+        
+        // Небольшой рандом: с 40% шансом добавляем +1 к бюджету, чтобы было веселее
+        if (Math.random() < 0.4) budget += 1;
 
-        // Если передан конкретный ключ (например, босс), игнорируем бюджет
+        // Хард-кап (не больше 12 очков, чтобы не зависло и влезло на экран)
+        if (budget > 12) budget = 12;
+
+        // 1. ЕСЛИ ВРАГ ЗАДАН ВРУЧНУЮ (Например, Босс или Тест)
         if (enemyKey) {
-            // Если это босс, он один
+            // Если это босс
             if (ENEMIES_DB[enemyKey].tier === 'boss') {
-                const boss = new Unit(scene, 1200, 350, enemyKey, false);
+                const boss = new Unit(scene, scene.scale.width * 0.75, scene.scale.height * 0.55, enemyKey, false);
                 return [boss];
             }
-            // Если обычный враг передан вручную
-            const unit = new Unit(scene, 1200, 350, enemyKey, false);
+            // Если обычный
+            const unit = new Unit(scene, scene.scale.width * 0.75, scene.scale.height * 0.55, enemyKey, false);
             return [unit];
         }
 
-        // --- ГЕНЕРАЦИЯ ОТРЯДА ---
+        // 2. ГЕНЕРАЦИЯ ОТРЯДА
         const squad = [];
-        const possibleEnemies = Object.keys(ENEMIES_DB).filter(k => ENEMIES_DB[k].tier !== 'boss');
+        // Берем всех врагов, кроме боссов
+        const allEnemies = Object.keys(ENEMIES_DB).filter(k => ENEMIES_DB[k].tier !== 'boss');
         
-        // Пока есть бюджет и место (макс 4 врага)
         let attempts = 0;
+        
+        // Пока есть деньги и место (макс 4 врага)
         while (budget > 0 && squad.length < 4 && attempts < 100) {
             attempts++;
-            const randKey = Phaser.Utils.Array.GetRandom(possibleEnemies);
+
+            // ВАЖНО: Фильтруем врагов, которые нам по карману прямо сейчас
+            const affordableEnemies = allEnemies.filter(key => ENEMIES_DB[key].cost <= budget);
+
+            // Если никого не можем купить (бюджет остался, например 0.5, а минимум стоит 1) - выходим
+            if (affordableEnemies.length === 0) break;
+
+            // Выбираем случайного из доступных
+            const randKey = Phaser.Utils.Array.GetRandom(affordableEnemies);
             const data = ENEMIES_DB[randKey];
 
-            if (data.cost <= budget) {
-                squad.push(randKey);
-                budget -= data.cost;
-            }
+            squad.push(randKey);
+            budget -= data.cost;
         }
 
-        // Если вдруг бюджет кончился, а врагов нет (редкий случай) -> добавляем Слайма
+        // Защита от пустого массива (на всякий случай)
         if (squad.length === 0) squad.push('slime');
 
-        // --- СОЗДАНИЕ ЮНИТОВ И РАССТАНОВКА ---
+        // 3. СОЗДАНИЕ ЮНИТОВ И РАССТАНОВКА
         const enemies = [];
         const positions = this.getPositions(squad.length, scene.scale.width, scene.scale.height);
 
@@ -57,37 +70,44 @@ export class EnemyFactory {
             const pos = positions[index];
             const enemy = new Unit(scene, pos.x, pos.y, key, false);
             
-            // Скейлинг сложности (ХП)
+            // Скейлинг ХП от этажа
+            // Чуть уменьшаем рост ХП, так как врагов теперь больше
             const hpMultiplier = 1 + (difficulty * 0.05); 
+            
             enemy.maxHp = Math.floor(enemy.maxHp * hpMultiplier);
             enemy.hp = enemy.maxHp;
-            enemy.difficultyMultiplier = hpMultiplier; // Для урона
+            enemy.difficultyMultiplier = hpMultiplier; 
             enemy.updateUI();
 
             enemies.push(enemy);
         });
 
-        console.log(`Спавн отряда: ${squad.join(', ')} (Бюджет ост: ${budget})`);
+        console.log(`Spawn Squad: [${squad.join(', ')}] | Floor: ${GameState.currentFloor} | Remaining Budget: ${budget}`);
         return enemies;
     }
 
-    // Расчет позиций (чтобы враги стояли красиво)
+    // Расчет позиций (Центрирование группы)
     static getPositions(count, GW, GH) {
-        const centerY = GH * 0.55; // Чуть ниже центра
-        const startX = GW * 0.6;   // Начинаем справа
-        const stepX = 180;         // Расстояние между врагами
+        const centerY = GH * 0.55; 
+        const stepX = 170; // Расстояние между врагами
 
         const positions = [];
         
-        // Центрируем группу
-        // Если 1 враг -> x = startX + 200
-        // Если 3 врага -> распределяем
+        // Считаем общую ширину группы
+        const totalGroupWidth = (count - 1) * stepX;
         
+        // Центр группы должен быть на 75% ширины экрана
+        const groupCenterX = GW * 0.75;
+        
+        // Находим координату X для первого врага (самого левого)
+        const startX = groupCenterX - (totalGroupWidth / 2);
+
         for (let i = 0; i < count; i++) {
-            // Сдвигаем каждого следующего правее
-            // И немного меняем Y, чтобы создать эффект перспективы (зигзаг или линия)
             const x = startX + (i * stepX);
-            const y = centerY + (i % 2 === 0 ? 0 : 40); // Каждый второй чуть ниже
+            // Зигзаг: -30, +30, -30... чтобы они не стояли в скучную линию
+            const yOffset = (i % 2 === 0) ? -30 : 30;
+            const y = centerY + yOffset;
+            
             positions.push({ x, y });
         }
         return positions;
