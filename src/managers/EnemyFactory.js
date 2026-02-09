@@ -7,53 +7,61 @@ import { GameState } from '../GameState.js';
 export class EnemyFactory {
      
     static createEnemies(scene, enemyKey = null) {
-        // 1. ПРЯМОЙ СПАВН (БОССЫ)
+        // 1. РУЧНОЙ СПАВН (БОССЫ ИЛИ ТЕСТ)
         if (enemyKey) {
             const isBoss = ENEMIES_DB[enemyKey] && ENEMIES_DB[enemyKey].tier === 'boss';
-            // Босса ставим по центру, обычного (если вдруг) чуть правее
-            const x = isBoss ? scene.scale.width * 0.75 : scene.scale.width * 0.75;
-            const y = isBoss ? scene.scale.height * 0.55 : scene.scale.height * 0.55;
+            
+            // Босса ставим чуть дальше, чем обычного
+            const x = scene.scale.width * 0.75; 
+            const y = scene.scale.height * 0.55;
             
             const unit = new Unit(scene, x, y, enemyKey, false);
             return [unit];
         }
 
-        // 2. ГЕНЕРАЦИЯ ОТРЯДА (БЕЗ КЛЮЧА)
+        // 2. ГЕНЕРАЦИЯ ПО СЛОЖНОСТИ
         const difficulty = (GameState.currentFloor || 0) + 1; 
-        
-        // --- НОВАЯ АГРЕССИВНАЯ ФОРМУЛА ---
-        // Этаж 1: 3 очка (3 Слайма или 1 Рыцарь)
-        // Этаж 2: 4 очка (1 Рыцарь + 1 Слайм)
-        // Мы даем БАЗУ 2 очка + номер этажа.
-        let budget = 2 + difficulty; 
-        
-        // Рандомный бонус (+0..2 очка), чтобы врагов было больше
-        budget += Math.floor(Math.random() * 3);
+        const actMultiplier = GameState.act;
 
-        // Хард-кап на экран (чтобы не вылезли за пределы)
+        // --- ФОРМУЛА БЮДЖЕТА ---
+        // База: 1.5 + (0.8 за этаж). 
+        // Этаж 1: ~2.3 (Хватит на 2 Слаймов)
+        // Этаж 2: ~3.1 (Хватит на 1 Рыцаря или 3 Слаймов)
+        // Этаж 5: ~5.5 (Рыцарь + 2 Слайма)
+        let budgetCalc = 1.5 + (difficulty * 0.8) + ((actMultiplier - 1) * 2);
+        
+        // Рандомный разброс (-1 .. +1), чтобы бои были непредсказуемыми
+        const variance = (Math.random() * 2) - 1; 
+        
+        let budget = Math.floor(budgetCalc + variance);
+
+        // Минимальный бюджет всегда 1 (чтобы хоть кто-то появился)
+        if (budget < 1) budget = 1;
+        // Максимальный бюджет 12 (техническое ограничение, чтобы не зависло)
         if (budget > 12) budget = 12;
 
         const squad = [];
+        // Получаем всех врагов, кроме боссов
         const allEnemies = Object.keys(ENEMIES_DB).filter(k => ENEMIES_DB[k].tier !== 'boss');
         
-        console.log(`--- SPAWN LOGIC START (Budget: ${budget}) ---`);
+        console.log(`Generating Squad... Floor: ${difficulty}, Budget: ${budget}`);
 
-        // --- ЛОГИКА НАБОРА ---
         let attempts = 0;
         
-        // Пытаемся набрать врагов
+        // Набираем врагов, пока есть деньги и место (макс 4 слота)
         while (budget > 0 && squad.length < 4 && attempts < 50) {
             attempts++;
             
-            // Фильтруем тех, кого можем купить
+            // Фильтруем тех, кого можем купить на оставшиеся деньги
             const affordable = allEnemies.filter(key => {
-                const cost = ENEMIES_DB[key].cost || 1; // Защита от undefined
+                const cost = ENEMIES_DB[key].cost || 1; 
                 return cost <= budget;
             });
 
-            if (affordable.length === 0) break; // Денег нет ни на кого
+            // Если денег не осталось даже на самого дешевого - выходим
+            if (affordable.length === 0) break; 
 
-            // Выбираем случайного
+            // Выбираем случайного из доступных
             const randKey = Phaser.Utils.Array.GetRandom(affordable);
             const cost = ENEMIES_DB[randKey].cost || 1;
 
@@ -61,16 +69,8 @@ export class EnemyFactory {
             budget -= cost;
         }
 
-        // --- ГАРАНТИЯ МИНИМУМ 2 ВРАГОВ ---
-        // Если вдруг заспавнился всего 1 враг (например, 1 Рыцарь на все деньги),
-        // а мы хотим экшена -> добавляем ему в помощь маленького Слайма бесплатно.
-        if (squad.length === 1 && difficulty > 0) {
-            console.log("Only 1 enemy spawned. Adding a support Slime!");
-            squad.push('slime');
-        }
-
-        // Защита от пустоты (если вообще все сломалось)
-        if (squad.length === 0) squad.push('slime', 'slime');
+        // Защита: Если вдруг массив пуст (например, бюджет был < 1 из-за бага), даем Слайма
+        if (squad.length === 0) squad.push('slime');
 
         // 3. СОЗДАНИЕ ОБЪЕКТОВ
         const enemies = [];
@@ -80,39 +80,43 @@ export class EnemyFactory {
             const pos = positions[index];
             const enemy = new Unit(scene, pos.x, pos.y, key, false);
             
-            // Увеличиваем ХП от этажа
-            const hpMultiplier = 1 + (difficulty * 0.05); 
+            // Небольшой рост ХП с уровнем (3% за этаж)
+            // Чтобы враги на 10 этаже были чуть жирнее врагов на 1 этаже
+            const hpMultiplier = 1 + (difficulty * 0.03); 
+            
             enemy.maxHp = Math.floor(enemy.maxHp * hpMultiplier);
             enemy.hp = enemy.maxHp;
             enemy.difficultyMultiplier = hpMultiplier; 
-            enemy.updateUI();
+            
+            enemy.updateUI(); // Обновляем полоску ХП
 
             enemies.push(enemy);
         });
+        
+        console.log(`Spawned: [${squad.join(', ')}]`);
 
-        console.log(`Final Squad: ${squad.join(' + ')}`);
         return enemies;
     }
 
-    // РАССТАНОВКА (Центрирование по вертикали и горизонтали)
+    // РАССТАНОВКА (Центрирование группы)
     static getPositions(count, GW, GH) {
-        const centerY = GH * 0.5; // Центр по высоте
-        const stepX = 160; 
-        const stepY = 60;  // Смещение по высоте для "глубины"
-
+        const centerY = GH * 0.55; 
+        const stepX = 170; // Расстояние между врагами
         const positions = [];
         
-        // Правая половина экрана (от 50% до 90%)
-        const areaCenterX = GW * 0.7; 
-        
-        // Начальная точка X (чтобы группа была по центру areaCenterX)
+        // Вычисляем ширину всей группы, чтобы отцентрировать её
         const totalWidth = (count - 1) * stepX;
-        const startX = areaCenterX - (totalWidth / 2);
+        
+        // Центр группы должен быть на 75% ширины экрана
+        const groupCenterX = GW * 0.75;
+        
+        // Находим позицию первого (левого) врага
+        const startX = groupCenterX - (totalWidth / 2);
 
         for (let i = 0; i < count; i++) {
             const x = startX + (i * stepX);
-            // Зигзаг: четные выше, нечетные ниже
-            const yOffset = (i % 2 === 0) ? -stepY : stepY;
+            // Зигзаг: четные выше, нечетные ниже (для визуального объема)
+            const yOffset = (i % 2 === 0) ? 0 : 40;
             
             positions.push({ x: x, y: centerY + yOffset });
         }
