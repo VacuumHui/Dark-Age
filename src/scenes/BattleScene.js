@@ -20,8 +20,6 @@ export class BattleScene extends Phaser.Scene {
     constructor() { super({ key: 'BattleScene' }); }
 
     init(data) {
-        // Если передан конкретный ключ (например босс), используем его
-        // Иначе null (фабрика сама сгенерирует отряд по бюджету)
         this.forcedEnemyKey = data.enemyKey || null;
     }
 
@@ -29,6 +27,9 @@ export class BattleScene extends Phaser.Scene {
         const GW = this.scale.width;
         const GH = this.scale.height;
         this.isBattleActive = true;
+        
+        // Включаем ввод принудительно при старте сцены (на всякий случай)
+        this.input.enabled = true; 
 
         if (!this.scene.isActive('UIScene')) {
             this.scene.launch('UIScene');
@@ -36,17 +37,15 @@ export class BattleScene extends Phaser.Scene {
         
         // --- 1. Менеджеры ---
         this.ui = new BattleUIManager(this);
-        this.handManager = new HandManager(this);
+        this.handManager = new HandManager(this); // <--- Он теперь главный по картам
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
         // --- 2. Данные ---
-        this.drawPile = Phaser.Utils.Array.Shuffle([...GameState.deck]); 
-        this.discardPile = [];
-        this.hand = [];
-        this.activeStack = []; // Для стека карт в руке
+        // Убрали дублирование массивов. Теперь всё через handManager
+        this.activeStack = []; 
         this.maxMana = GameState.maxMana || 3;
         this.mana = this.maxMana;
 
@@ -56,12 +55,10 @@ export class BattleScene extends Phaser.Scene {
         this.updateManaUI();
 
         // --- 4. Игрок ---
-        // Ставим чуть левее центра
         this.player = new Unit(this, GW * 0.2, GH * 0.5, null, true); 
         this.player.hp = GameState.currentHp;
         this.player.maxHp = GameState.maxHp;
         
-        // Защита от багов с 0 ХП
         if (this.player.hp <= 0) {
             this.player.hp = this.player.maxHp;
             GameState.currentHp = this.player.maxHp;
@@ -69,18 +66,17 @@ export class BattleScene extends Phaser.Scene {
         this.player.updateUI();
         this.add.existing(this.player);
 
-        // --- 5. Враги (Массив) ---
+        // --- 5. Враги ---
         this.enemies = []; 
         this.startNewBattle(this.forcedEnemyKey);
 
-        // --- 6. Триггеры и Старт ---
+        // --- 6. Старт ---
         this.relicManager.trigger('onBattleStart');
         this.updateGlobalUI();
 
         this.handManager.drawCards(5);
         this.handManager.setupInput();
         
-        // Затемнение (для зума и просмотра колоды)
         this.dimmer = this.add.rectangle(GW/2, GH/2, GW, GH, 0x000000, 0.85)
             .setVisible(false).setDepth(900).setInteractive();
             
@@ -91,16 +87,14 @@ export class BattleScene extends Phaser.Scene {
     }
 
     startNewBattle(enemyKey) {
-        // Очистка старых врагов (на всякий случай)
         this.enemies.forEach(e => e.destroy());
         this.enemies = [];
 
-        // Создаем массив врагов через фабрику (учитывая бюджет уровня)
         const newEnemies = EnemyFactory.createEnemies(this, enemyKey);
         
         newEnemies.forEach(enemy => {
             this.add.existing(enemy);
-            enemy.chooseIntent(); // Враг сразу задумывает действие
+            enemy.chooseIntent(); 
             this.enemies.push(enemy);
         });
 
@@ -108,7 +102,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // БЛОК 1: КАРТЫ И ЛОГИКА ПРИМЕНЕНИЯ
+    // БЛОК 1: КАРТЫ (ИСПРАВЛЕНО)
     // =========================================================
 
     playCard(card, target) {
@@ -116,42 +110,33 @@ export class BattleScene extends Phaser.Scene {
         
         if (computedData.actions) { 
             computedData.actions.forEach(action => { 
-                // Определяем фактическую цель (или цели)
                 let finalTargets = []; 
-
                 const actionTarget = action.target || computedData.target;
                 
                 if (actionTarget === 'self') {
-                    // Цель - Игрок (баффы, блок, хил)
                     finalTargets.push(this.player);
                 } 
                 else if (actionTarget === 'all_enemies') {
-                    // Атакуем ВСЕХ живых врагов (AOE)
                     finalTargets = this.enemies.filter(e => e.alive);
                 }
                 else {
-                    // Одиночная цель (enemy) - тот, на кого скинули карту
                     if (target && target.alive) {
                         finalTargets.push(target);
                     }
-                    // Фоллбек: Если кинули "в никуда" или на труп -> берем первого живого
                     else {
                          const firstAlive = this.enemies.find(e => e.alive);
                          if (firstAlive) finalTargets.push(firstAlive);
                     }
                 }
 
-                // Применяем действие ко всем найденным целям
                 finalTargets.forEach(t => {
                     executeAction(this, action, this.player, t); 
                 });
             }); 
         }
 
-        // Тратим ману
         this.spendMana(computedData.cost);
 
-        // Сжигаем или сбрасываем карту
         if (computedData.consume) {
             this.consumeCard(card);
         } else {
@@ -162,9 +147,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     consumeCard(card) {
-        this.hand = this.hand.filter(c => c !== card);
+        // <--- FIX: Обращаемся к массивам handManager, а не this.hand
+        this.handManager.hand = this.handManager.hand.filter(c => c !== card);
         
-        // Удаляем из ГЛОБАЛЬНОЙ колоды по UID
         const index = GameState.deck.findIndex(c => c.uid === card.cardInstance.uid);
         if (index > -1) GameState.deck.splice(index, 1);
 
@@ -179,13 +164,18 @@ export class BattleScene extends Phaser.Scene {
     }
 
     discardCard(card) {
-        this.discardPile.push(card.cardInstance);
-        this.hand = this.hand.filter(c => c !== card);
+        // <--- FIX: Обращаемся к массивам handManager
+        this.handManager.discardPile.push(card.cardInstance);
+        this.handManager.hand = this.handManager.hand.filter(c => c !== card);
+
         this.tweens.add({ 
             targets: card, 
             x: this.ui.trashZone.x, y: this.ui.trashZone.y, 
             alpha: 0, scale: 0.1, duration: 300, 
-            onComplete: () => { card.destroy(); this.handManager.rearrangeHand(); } 
+            onComplete: () => { 
+                card.destroy(); 
+                this.handManager.rearrangeHand(); 
+            } 
         });
         this.updateDeckUI();
     }
@@ -249,79 +239,55 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // БЛОК 3: ЛОГИКА ХОДА (ASYNC ДЛЯ ОТРЯДА)
+    // БЛОК 3: ЛОГИКА ХОДА (ASYNC)
     // =========================================================
 
     endTurn() {
         if (!this.isBattleActive) return;
         if (this.zoomedCard) this.unzoomCard();
-
-        // Запускаем асинхронную обработку хода врагов
         this.processEnemyTurns();
     }
 
     async processEnemyTurns() {
-        // 1. Блокируем ввод игрока
-        this.input.enabled = false;
+        this.input.enabled = false; // Блокируем ввод
 
-        // Фильтруем только живых врагов для хода
         const aliveEnemies = this.enemies.filter(e => e.alive);
 
         for (const enemy of aliveEnemies) {
-            // Проверки на случай, если бой кончился посередине хода
             if (!this.isBattleActive) break;
             if (!this.player.alive) break;
 
-            // Старт хода конкретного врага
             if (this.statusManager) this.statusManager.onTurnStart(enemy);
-            
             enemy.resetShield();
 
-            // Проверка заморозки/стана
             let skipEnemyTurn = false;
-            if (this.statusManager) {
-                skipEnemyTurn = this.statusManager.checkTurnSkip(enemy);
-            }
+            if (this.statusManager) skipEnemyTurn = this.statusManager.checkTurnSkip(enemy);
 
             if (!skipEnemyTurn) {
-                // Небольшая задержка перед атакой (чтобы игрок успел понять, кто бьет)
                 await new Promise(resolve => this.time.delayedCall(300, resolve));
-                
                 enemy.executeIntent(this.player);
-                
-                // Задержка после атаки (чтобы цифры урона успели улететь)
                 await new Promise(resolve => this.time.delayedCall(500, resolve));
             } else {
-                // Если пропуск хода - просто пауза
-                console.log(`${enemy.name} пропускает ход`);
                 await new Promise(resolve => this.time.delayedCall(800, resolve));
             }
 
-            // Конец хода врага (тикают статусы типа Weak)
             if (this.statusManager) this.statusManager.onTurnEnd(enemy);
-            
             this.updateGlobalUI();
         }
 
-        // Если игрок умер в процессе атак
-        if (!this.player.alive) return;
+        if (!this.player.alive) return; // Если умерли, handleUnitDeath обработает ввод
 
-        // 2. Возвращаем ход Игроку
         if (this.isBattleActive) {
-            
             if (this.statusManager) {
                 this.statusManager.onTurnEnd(this.player);   
                 this.statusManager.onTurnStart(this.player); 
             }
             this.relicManager.trigger('onTurnStart'); 
-            
             this.updateGlobalUI();
 
             if (!this.player.alive) return;
             
             this.player.resetShield(); 
-            
-            // Все живые враги планируют следующее действие
             this.enemies.filter(e => e.alive).forEach(e => e.chooseIntent());
             
             this.mana = this.maxMana; 
@@ -331,13 +297,12 @@ export class BattleScene extends Phaser.Scene {
             if (cardsNeeded > 0) this.handManager.drawCards(cardsNeeded);
             else this.handManager.rearrangeHand();
             
-            // Разблокируем ввод
-            this.input.enabled = true;
+            this.input.enabled = true; // <--- FIX: Возвращаем ввод игроку
         }
     }
 
     // =========================================================
-    // БЛОК 4: СОБЫТИЯ И ПОБЕДА/ПОРАЖЕНИЕ
+    // БЛОК 4: СОБЫТИЯ
     // =========================================================
 
     handleUnitDeath(unit) {
@@ -345,19 +310,16 @@ export class BattleScene extends Phaser.Scene {
         
         if (unit.isPlayer) {
             this.isBattleActive = false;
+            this.input.enabled = true; // <--- FIX: Включаем ввод, чтобы нажать кнопку
+            
             this.ui.showDefeatScreen(() => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
             });
         } else {
-            // Умер враг
             this.relicManager.trigger('onKill', { victim: unit });
-            
-            // Проверяем, остался ли хоть один живой враг
             const anyAlive = this.enemies.some(e => e.alive);
-            
             if (!anyAlive) {
-                // Если все мертвы - Победа
                 this.handleVictory();
             }
         }
@@ -365,6 +327,7 @@ export class BattleScene extends Phaser.Scene {
 
     handleVictory() {
         this.isBattleActive = false;
+        this.input.enabled = true; // <--- FIX: Включаем ввод для выбора наград
         this.handManager.discardHandVisual(); 
 
         const GW = this.scale.width; 
@@ -372,7 +335,6 @@ export class BattleScene extends Phaser.Scene {
         GameState.currentHp = this.player.hp;
         GameState.level++;
         
-        // Золото: База 20 + 5 за каждого врага
         const goldReward = 20 + (this.enemies.length * 5);
         GameState.gold += goldReward;
         
@@ -382,7 +344,6 @@ export class BattleScene extends Phaser.Scene {
         }
         this.updateGlobalUI();
 
-        // Проверяем, был ли это Босс
         const isBossFight = this.forcedEnemyKey && ENEMIES_DB[this.forcedEnemyKey].tier === 'boss';
 
         if (isBossFight) {
