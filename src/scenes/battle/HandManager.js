@@ -3,7 +3,7 @@
 import { Card } from '../../prefabs/Card.js';
 import { GameState } from '../../GameState.js';
 import { getComputedCard } from '../../managers/CardLogic.js';
-import { executeAction } from '../../managers/ActionManager.js';
+// executeAction больше не нужен здесь напрямую, так как мы передаем выполнение в BattleScene
 
 export class HandManager {
     constructor(scene) {
@@ -42,27 +42,10 @@ export class HandManager {
         this.rearrangeHand();
     }
 
+    // Метод для программного розыгрыша (если понадобится)
     playCard(card, target) {
-        const computedData = getComputedCard(card.cardInstance);
-        
-        if (computedData.actions) { 
-            computedData.actions.forEach(action => { 
-                let finalTarget = target;
-                const actionTarget = action.target || computedData.target;
-                if (actionTarget === 'self') finalTarget = this.scene.player;
-                executeAction(this.scene, action, this.scene.player, finalTarget); 
-            }); 
-        }
-        
-        this.scene.spendMana(computedData.cost);
-        
-        if (computedData.consume) {
-            this.consumeCard(card);
-        } else {
-            this.discardCard(card);
-        }
-        
-        this.scene.updateGlobalUI();
+        // Делегируем логику выполнения Сцене, так как там обрабатываются AOE и массивы врагов
+        this.scene.playCard(card, target);
     }
 
     discardCard(card) {
@@ -122,7 +105,7 @@ export class HandManager {
     }
 
     // =========================================================
-    // ВВОД (ИСПРАВЛЕНО: ЗАЩИТА ОТ ЗУМА)
+    // ВВОД (ИСПРАВЛЕНО ДЛЯ РАБОТЫ С МАССИВОМ ВРАГОВ)
     // =========================================================
 
     setupInput() {
@@ -131,7 +114,6 @@ export class HandManager {
             if (!this.scene.isBattleActive) return;
             
             // --- ЗАЩИТА ---
-            // Если открыта колода или карта приближена - ВЫХОДИМ СРАЗУ
             if (this.scene.ui.deckContainer && this.scene.ui.deckContainer.visible) return;
             if (this.scene.zoomedCard) return;
             // --------------
@@ -145,14 +127,8 @@ export class HandManager {
         // 2. DRAG MOVE
         this.scene.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             if (!this.scene.isBattleActive) return;
-            
-            // --- ЗАЩИТА ---
-            // Если карта приближена - НИЧЕГО НЕ ДЕЛАЕМ
             if (this.scene.zoomedCard) return;
-            
-            // Если стек пуст (баг) - ВЫХОДИМ, чтобы не было ошибки undefined
             if (!this.activeStack || this.activeStack.length === 0) return;
-            // --------------
 
             const leaderCard = gameObject.parentContainer;
             
@@ -188,11 +164,8 @@ export class HandManager {
         // 3. DRAG END
         this.scene.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!this.scene.isBattleActive) return;
-            
-            // --- ЗАЩИТА ---
             if (this.scene.zoomedCard) return;
             if (!this.activeStack || this.activeStack.length === 0) return;
-            // --------------
             
             if (this.activeStack.length === 1 && Date.now() - this.activeStack[0].pressStartTime < 250) {
                 this.activeStack = []; 
@@ -207,19 +180,19 @@ export class HandManager {
             }
         });
 
-        // 4. DROP
+        // 4. DROP (САМОЕ ВАЖНОЕ ОБНОВЛЕНИЕ)
         this.scene.input.on('drop', (pointer, gameObject, dropZone) => {
             if (!this.scene.isBattleActive) return;
 
-            // --- ЗАЩИТА ---
             if (this.scene.zoomedCard) return;
-            // --------------
             
+            // Если кинули в мусорку
             if (dropZone.name === "discard_zone") { 
                 this.discardStack(); 
                 return; 
             }
 
+            // Проверка маны
             let totalCost = 0;
             this.activeStack.forEach(card => {
                 const computed = getComputedCard(card.cardInstance);
@@ -232,9 +205,19 @@ export class HandManager {
                 return;
             }
 
+            // --- НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ ЦЕЛИ ---
             let dropTargetUnit = null;
-            if (dropZone.name === "enemy_target" && this.scene.enemy.alive) dropTargetUnit = this.scene.enemy;
-            else if (dropZone.name === "player_target" && this.scene.player.alive) dropTargetUnit = this.scene.player;
+
+            // Мы ищем свойство parentUnit, которое мы добавили в классе Unit
+            if (dropZone.parentUnit) {
+                const unit = dropZone.parentUnit;
+                
+                // Проверяем, жив ли юнит
+                if (unit.alive) {
+                    // Разрешаем бросать карту на него
+                    dropTargetUnit = unit;
+                }
+            }
 
             if (dropTargetUnit) {
                 this.playStackSequence(dropTargetUnit);
@@ -279,7 +262,9 @@ export class HandManager {
         stackToPlay.forEach((card, index) => {
             card.setDepth(2000 + index);
 
-            const hoverX = target.x + (target.isPlayer ? 250 : -250); 
+            // Анимация подлета к цели
+            // Если цель - игрок, подлетаем слева, если враг - справа (примерно)
+            const hoverX = target.x + (target.isPlayer ? 250 : -100); 
             const hoverY = target.y - 50;
 
             this.scene.tweens.add({
@@ -298,22 +283,11 @@ export class HandManager {
     }
 
     playCardLogic(card, target) {
-        const computedData = getComputedCard(card.cardInstance);
-        if (computedData.actions) { 
-            computedData.actions.forEach(action => { 
-                let finalTarget = target;
-                const actionTarget = action.target || computedData.target;
-                if (actionTarget === 'self') finalTarget = this.scene.player;
-                executeAction(this.scene, action, this.scene.player, finalTarget); 
-            }); 
-        }
-        this.scene.spendMana(computedData.cost);
-        this.discardPile.push(card.cardInstance);
-        this.scene.tweens.add({
-            targets: card, alpha: 0, scale: 0.5, y: card.y - 50, duration: 300,
-            onComplete: () => { card.destroy(); this.scene.ui.updateDeckCount(this.drawPile.length, this.discardPile.length); }
-        });
-        this.scene.updateGlobalUI();
+        
+        
+        this.scene.playCard(card, target);
+
+        
     }
 
     returnStackToHand() {
