@@ -8,9 +8,9 @@ export class Unit extends Phaser.GameObjects.Container {
         super(scene, x, y);
         this.scene = scene;
         this.isPlayer = isPlayer;
+        this.unitKey = key; 
         this.shield = 0;
         this.alive = true;
-        
         this.statuses = {}; 
         this.difficultyMultiplier = 1;
 
