@@ -28,7 +28,7 @@ export class BattleScene extends Phaser.Scene {
         const GH = this.scale.height;
         this.isBattleActive = true;
         
-        // Включаем ввод принудительно при старте сцены (на всякий случай)
+        // Включаем ввод (на случай перезапуска сцены)
         this.input.enabled = true; 
 
         if (!this.scene.isActive('UIScene')) {
@@ -37,14 +37,13 @@ export class BattleScene extends Phaser.Scene {
         
         // --- 1. Менеджеры ---
         this.ui = new BattleUIManager(this);
-        this.handManager = new HandManager(this); // <--- Он теперь главный по картам
+        this.handManager = new HandManager(this);
         this.effectManager = new EffectManager(this);
         this.rewardManager = new RewardManager();
         this.statusManager = new StatusManager(this);
         this.relicManager = new RelicManager(this); 
 
         // --- 2. Данные ---
-        // Убрали дублирование массивов. Теперь всё через handManager
         this.activeStack = []; 
         this.maxMana = GameState.maxMana || 3;
         this.mana = this.maxMana;
@@ -102,7 +101,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // =========================================================
-    // БЛОК 1: КАРТЫ (ИСПРАВЛЕНО)
+    // БЛОК 1: КАРТЫ
     // =========================================================
 
     playCard(card, target) {
@@ -147,9 +146,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     consumeCard(card) {
-        // <--- FIX: Обращаемся к массивам handManager, а не this.hand
         this.handManager.hand = this.handManager.hand.filter(c => c !== card);
-        
         const index = GameState.deck.findIndex(c => c.uid === card.cardInstance.uid);
         if (index > -1) GameState.deck.splice(index, 1);
 
@@ -164,7 +161,6 @@ export class BattleScene extends Phaser.Scene {
     }
 
     discardCard(card) {
-        // <--- FIX: Обращаемся к массивам handManager
         this.handManager.discardPile.push(card.cardInstance);
         this.handManager.hand = this.handManager.hand.filter(c => c !== card);
 
@@ -249,7 +245,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     async processEnemyTurns() {
-        this.input.enabled = false; // Блокируем ввод
+        this.input.enabled = false; 
 
         const aliveEnemies = this.enemies.filter(e => e.alive);
 
@@ -275,7 +271,7 @@ export class BattleScene extends Phaser.Scene {
             this.updateGlobalUI();
         }
 
-        if (!this.player.alive) return; // Если умерли, handleUnitDeath обработает ввод
+        if (!this.player.alive) return; 
 
         if (this.isBattleActive) {
             if (this.statusManager) {
@@ -297,12 +293,12 @@ export class BattleScene extends Phaser.Scene {
             if (cardsNeeded > 0) this.handManager.drawCards(cardsNeeded);
             else this.handManager.rearrangeHand();
             
-            this.input.enabled = true; // <--- FIX: Возвращаем ввод игроку
+            this.input.enabled = true; 
         }
     }
 
     // =========================================================
-    // БЛОК 4: СОБЫТИЯ
+    // БЛОК 4: ПОБЕДА И НАГРАДЫ (ОБНОВЛЕНО)
     // =========================================================
 
     handleUnitDeath(unit) {
@@ -310,8 +306,7 @@ export class BattleScene extends Phaser.Scene {
         
         if (unit.isPlayer) {
             this.isBattleActive = false;
-            this.input.enabled = true; // <--- FIX: Включаем ввод, чтобы нажать кнопку
-            
+            this.input.enabled = true;
             this.ui.showDefeatScreen(() => { 
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene'); 
@@ -327,7 +322,7 @@ export class BattleScene extends Phaser.Scene {
 
     handleVictory() {
         this.isBattleActive = false;
-        this.input.enabled = true; // <--- FIX: Включаем ввод для выбора наград
+        this.input.enabled = true; 
         this.handManager.discardHandVisual(); 
 
         const GW = this.scale.width; 
@@ -335,15 +330,36 @@ export class BattleScene extends Phaser.Scene {
         GameState.currentHp = this.player.hp;
         GameState.level++;
         
-        const goldReward = 20 + (this.enemies.length * 5);
-        GameState.gold += goldReward;
+        // --- РАСЧЕТ ЗОЛОТА ПО ВРАГАМ ---
+        let goldReward = 0;
         
+        this.enemies.forEach(enemy => {
+            // Берем данные по ключу (который мы должны были сохранить в Unit.js)
+            const data = ENEMIES_DB[enemy.unitKey];
+            if (data) {
+                const cost = data.cost || 1;
+                // Формула: 10 за убийство + 10 за каждую единицу сложности
+                goldReward += 10 + (cost * 10);
+            } else {
+                // Если ключа нет или данных нет - фоллбек
+                goldReward += 15; 
+            }
+        });
+        
+        // Добавляем золото события (например, за нападение на вора)
         if (GameState.eventFightBonusGold > 0) {
-            GameState.gold += GameState.eventFightBonusGold;
+            goldReward += GameState.eventFightBonusGold;
             GameState.eventFightBonusGold = 0;
         }
+
+        GameState.gold += goldReward;
+
+        // Показываем игроку, сколько он заработал
+        this.ui.showFloatingText(GW/2, GH/2, `+${goldReward} GOLD`, 0xffd700);
+        
         this.updateGlobalUI();
 
+        // Проверяем Босса
         const isBossFight = this.forcedEnemyKey && ENEMIES_DB[this.forcedEnemyKey].tier === 'boss';
 
         if (isBossFight) {
