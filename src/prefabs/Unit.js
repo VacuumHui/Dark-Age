@@ -46,6 +46,7 @@ export class Unit extends Phaser.GameObjects.Container {
         this.sprite.setInteractive();
         this.sprite.input.dropZone = true;
         this.sprite.name = isPlayer ? "player_target" : "enemy_target";
+        this.sprite.parentUnit = this; 
     }
 
     updateStatusUI() {
