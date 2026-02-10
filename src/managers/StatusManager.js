@@ -51,9 +51,6 @@ export class StatusManager {
     }
 
     onTurnEnd(unit) {
-        if (unit.statuses['strength']) {
-            delete unit.statuses['strength'];
-        }
 
         ['weak', 'vulnerable'].forEach(stat => {
             if (unit.statuses[stat] > 0) {
