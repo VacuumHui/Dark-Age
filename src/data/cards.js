@@ -8,10 +8,10 @@ export const CARDS_DB = {
         rarity: "common", 
         target: "enemy", // Главная цель - враг
         color: 0xaa0000, 
-        desc: "4 урона", 
-        fullDesc: "Базовая атака.\nНаносит 4 единиц урона.",
+        desc: "6 урона", 
+        fullDesc: "Базовая атака.\nНаносит 6 единиц урона.",
         actions: [ 
-            { type: "damage", value: 4 } // Бьет главную цель (врага)
+            { type: "damage", value: 6 } // Бьет главную цель (врага)
         ]
     },
     
