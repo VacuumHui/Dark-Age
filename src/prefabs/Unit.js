@@ -151,7 +151,7 @@ export class Unit extends Phaser.GameObjects.Container {
         }
     }
     
-    showIntentUI() {
+        showIntentUI() {
         if (!this.currentIntent) return;
         const move = this.currentIntent;
         
@@ -161,20 +161,40 @@ export class Unit extends Phaser.GameObjects.Container {
         if (move.actions && move.actions.length > 0) {
             const firstAction = move.actions[0];
             let displayValue = firstAction.value;
+
+            // 1. Учет сложности (как было)
             if (this.difficultyMultiplier && (firstAction.type === 'damage' || firstAction.type === 'block')) {
                 displayValue = Math.floor(firstAction.value * this.difficultyMultiplier);
             }
 
-            if (firstAction.type === 'damage') { icon = "⚔️"; val = displayValue; }
-            else if (firstAction.type === 'block') { icon = "🛡️"; val = displayValue; }
+            // 2. ДОБАВЛЕНО: Учет статусов (Сила / Слабость)
+            if (firstAction.type === 'damage') {
+                icon = "⚔️";
+                // Если есть Сила, прибавляем её к отображаемому значению
+                if (this.statuses['strength']) {
+                    displayValue += this.statuses['strength'];
+                }
+                // Если есть Слабость - уменьшаем на 25%
+                if (this.statuses['weak']) {
+                    displayValue = Math.floor(displayValue * 0.75);
+                }
+            }
+            else if (firstAction.type === 'block') { icon = "🛡️"; }
             else if (firstAction.type === 'apply_status') { 
                 if (move.target === 'self') icon = "💪"; 
                 else icon = "🤮"; 
             }
+            
+            // Если это урон или блок - записываем число
+            if (firstAction.type === 'damage' || firstAction.type === 'block') {
+                val = displayValue;
+            }
         }
+        
         this.intentIcon.setText(icon);
         this.intentValue.setText(val);
     }
+
     
     executeIntent(playerTarget) {
         if (!this.currentIntent || !this.alive) return;
