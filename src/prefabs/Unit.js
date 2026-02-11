@@ -43,10 +43,20 @@ export class Unit extends Phaser.GameObjects.Container {
 
         this.add([this.hpBarBg, this.hpBar, this.hpText, this.shieldText, this.statusText, this.intentIcon, this.intentValue]);
 
-        this.sprite.setInteractive();
+                this.sprite.setInteractive();
         this.sprite.input.dropZone = true;
         this.sprite.name = isPlayer ? "player_target" : "enemy_target";
         this.sprite.parentUnit = this; 
+
+        // --- НОВОЕ: Клик для инфо ---
+        this.sprite.on('pointerdown', () => {
+            // Проверяем, не тянет ли игрок сейчас карту (чтобы не мешать бою)
+            // Обращаемся к handManager через сцену
+            if (this.scene.handManager && this.scene.handManager.activeStack.length === 0) {
+                // Вызываем метод UI менеджера
+                this.scene.ui.showUnitInfo(this);
+            }
+        });
     }
 
     updateStatusUI() {
