@@ -198,114 +198,162 @@ export class BattleUIManager {
         const nextBtn = this.scene.add.text(GW/2, GH/2 + 50, "[ ENTER NEXT ACT ]", { fontSize: '40px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(3001).setInteractive();
         nextBtn.on('pointerdown', onNextAct);
     }
-        // --- НОВЫЙ МЕТОД: ОКНО ИНФОРМАЦИИ О ЮНИТЕ ---
+            // --- ОБНОВЛЕННЫЙ МЕТОД: ИНФО О ЮНИТЕ (RU, Compact, Animated) ---
     showUnitInfo(unit) {
         const GW = this.scene.scale.width;
         const GH = this.scene.scale.height;
 
-        // Если уже открыто - закрываем старое
-        if (this.infoPanel) this.infoPanel.destroy();
-        if (this.infoDimmer) this.infoDimmer.destroy();
-
-        // 1. Затемнение фона (закрывается по клику)
-        this.infoDimmer = this.scene.add.rectangle(0, 0, GW, GH, 0x000000, 0.7)
-            .setOrigin(0).setDepth(4000).setInteractive();
+        // 1. Убираем старое окно, если есть
+        if (this.infoPanel) {
+             this.infoPanel.destroy();
+             this.infoPanel = null;
+        }
         
-        this.infoDimmer.on('pointerdown', () => {
-            this.infoPanel.destroy();
-            this.infoDimmer.destroy();
+        // 2. Рассчитываем позицию "РЯДОМ" с юнитом
+        // По умолчанию ставим справа сверху от врага
+        let popX = unit.x + 160;
+        let popY = unit.y - 50;
+
+        // Если враг слишком близко к правому краю, показываем окно СЛЕВА
+        if (popX + 150 > GW) {
+            popX = unit.x - 160;
+        }
+        // Если слишком высоко
+        if (popY - 150 < 0) {
+            popY = 180;
+        }
+
+        // 3. Создаем контейнер
+        const panel = this.scene.add.container(popX, popY).setDepth(4001);
+        this.infoPanel = panel;
+
+        // 4. Прозрачная подложка на весь экран (чтобы закрыть кликом в любое место)
+        const clickCloser = this.scene.add.rectangle(-popX, -popY, GW * 2, GH * 2, 0x000000, 0.01)
+            .setInteractive().setOrigin(0);
+        
+        clickCloser.on('pointerdown', () => {
+            // Анимация закрытия
+            this.scene.tweens.add({
+                targets: panel, scale: 0, alpha: 0, duration: 150, ease: 'Back.in',
+                onComplete: () => panel.destroy()
+            });
             this.infoPanel = null;
         });
+        panel.add(clickCloser); // Добавляем первым, чтобы лежал "под" окном
 
-        // 2. Контейнер панели
-        this.infoPanel = this.scene.add.container(GW / 2, GH / 2).setDepth(4001);
+        // 5. ФОН ОКНА (Компактный)
+        const w = 320;
+        const h = 340;
+        const bg = this.scene.add.rectangle(0, 0, w, h, 0x1a1a1a)
+            .setStrokeStyle(3, unit.color || 0xffffff);
         
-        // Фон окна
-        const bg = this.scene.add.rectangle(0, 0, 500, 400, 0x222222)
-            .setStrokeStyle(4, unit.color || 0xffffff);
-        
-        // Заголовок
-        const title = this.scene.add.text(0, -160, unit.name.toUpperCase(), { 
-            fontSize: '32px', fontStyle: 'bold', color: '#fff' 
+        // Тень для красоты
+        const shadow = this.scene.add.rectangle(10, 10, w, h, 0x000000, 0.5);
+
+        // --- ЗАГОЛОВОК ---
+        const title = this.scene.add.text(0, -140, unit.name.toUpperCase(), { 
+            fontSize: '22px', fontStyle: 'bold', color: '#ffffff' 
         }).setOrigin(0.5);
 
-        // ХП и Щит
-        const statsText = this.scene.add.text(0, -110, `HP: ${unit.hp}/${unit.maxHp}   |   SHIELD: ${unit.shield}`, {
-            fontSize: '24px', color: '#00ffff'
+        // Полоса разделитель
+        const line = this.scene.add.rectangle(0, -120, w - 40, 2, 0x555555);
+
+        // --- ХАРАКТЕРИСТИКИ ---
+        const statsText = this.scene.add.text(0, -90, `ЗДОРОВЬЕ: ${unit.hp}/${unit.maxHp}\nЩИТ: ${unit.shield}`, {
+            fontSize: '18px', color: '#00ffff', align: 'center', lineSpacing: 5
         }).setOrigin(0.5);
 
-        // --- ЛОГИКА РАСЧЕТА УРОНА (МАТЕМАТИКА) ---
-        let intentDesc = "Intent: Unknown / Waiting";
-        
+        // --- НАМЕРЕНИЕ (INTENT) ---
+        let intentDesc = "Думает...";
+        let intentColor = '#aaaaaa';
+
         if (unit.currentIntent && unit.currentIntent.actions) {
-            const action = unit.currentIntent.actions[0];
+            const act = unit.currentIntent.actions[0];
             
-            // Если враг собирается АТАКОВАТЬ
-            if (action.type === 'damage') {
-                let base = action.value;
-                let text = `Intent: ATTACK for ${base}`;
+            if (act.type === 'damage') {
+                intentColor = '#ff5555';
+                let val = act.value; 
+                let info = `База: ${val}`;
                 
-                // 1. Сложность
-                if (unit.difficultyMultiplier && unit.difficultyMultiplier !== 1) {
-                    base = Math.floor(base * unit.difficultyMultiplier);
-                    text += `\n(Difficulty x${unit.difficultyMultiplier.toFixed(2)}) => ${base}`;
+                // Математика
+                if (unit.difficultyMultiplier > 1) {
+                    val = Math.floor(val * unit.difficultyMultiplier);
+                    info += `\n+ Этаж: ${val}`;
                 }
-                
-                // 2. Сила
                 if (unit.statuses['strength']) {
-                    const str = unit.statuses['strength'];
-                    base += str;
-                    text += `\n(+${str} Strength) => ${base}`;
+                    val += unit.statuses['strength'];
+                    info += `\n+ Сила: ${val}`;
+                }
+                if (unit.statuses['weak']) {
+                    val = Math.floor(val * 0.75);
+                    info += `\n- Слабость (x0.75)`;
                 }
                 
-                // 3. Слабость
-                if (unit.statuses['weak']) {
-                    base = Math.floor(base * 0.75);
-                    text += `\n(Weakness -25%) => ${base}`;
-                }
-
-                intentDesc = text + `\n\nFinal Damage: ${base}`;
+                intentDesc = `${info}\n-----------------\nИТОГ: ${val} УРОНА`;
             } 
-            // Если БЛОК
-            else if (action.type === 'block') {
-                intentDesc = `Intent: DEFEND\nWill gain ${action.value} Block.`;
+            else if (act.type === 'block') {
+                intentColor = '#55ffff';
+                intentDesc = `Намерение: ЗАЩИТА\nПолучит +${act.value} Щита`;
             }
-            // Если БАФФ
-            else if (action.type === 'apply_status') {
-                intentDesc = `Intent: BUFF/DEBUFF\nApplying ${action.status.toUpperCase()}.`;
+            else if (act.type === 'apply_status') {
+                intentColor = '#ffff55';
+                const statusName = this.getStatusNameRU(act.status);
+                intentDesc = `Намерение: ЭФФЕКТ\nНакладывает "${statusName}"`;
             }
         }
 
-        const intentObj = this.scene.add.text(0, -30, intentDesc, {
-            fontSize: '20px', color: '#ffd700', align: 'center', wordWrap: { width: 450 }
+        const intentObj = this.scene.add.text(0, 0, intentDesc, {
+            fontSize: '16px', color: intentColor, align: 'center', fontStyle: 'bold', wordWrap: { width: w - 40 }
         }).setOrigin(0.5);
 
-        // --- СПИСОК СТАТУСОВ (ОПИСАНИЕ) ---
+        // --- СТАТУСЫ ---
         let statusList = "";
-        const descriptions = {
-            'strength': "Увеличивает урон от атаки.",
-            'weak': "Наносит на 25% меньше урона.",
-            'vulnerable': "Получает на 50% больше урона.",
-            'poison': "Получает урон в начале хода.",
-            'thorns': "При попадании наносит ответный урон.",
-            'rage': "Усиливается при ударе.",
-            'freeze': "Возможность пропустить ход."
+        const ruDesc = {
+            'strength': "Сила: +Урон",
+            'weak': "Слабость: -25% Урона",
+            'vulnerable': "Уязвимость: +50% Входящего урона",
+            'poison': "Яд: Урон каждый ход",
+            'thorns': "Шипы: Возврат урона",
+            'rage': "Ярость: Бьют -> Растет Сила",
+            'freeze': "Заморозка: Может пропустить ход"
         };
 
         if (Object.keys(unit.statuses).length > 0) {
-            statusList = "--- ACTIVE EFFECTS ---\n";
+            statusList = "--- ЭФФЕКТЫ ---\n";
             for (const [stat, val] of Object.entries(unit.statuses)) {
-                const desc = descriptions[stat] || "Unknown effect";
-                statusList += `${stat.toUpperCase()} (${val}): ${desc}\n`;
+                const desc = ruDesc[stat] || stat;
+                statusList += `${desc} (${val})\n`;
             }
         } else {
-            statusList = "(No active effects)";
+            statusList = "(Нет эффектов)";
         }
 
-        const statusObj = this.scene.add.text(0, 100, statusList, {
-            fontSize: '16px', color: '#aaaaaa', align: 'center', lineSpacing: 5
+        const statusObj = this.scene.add.text(0, 110, statusList, {
+            fontSize: '14px', color: '#cccccc', align: 'center', lineSpacing: 4
         }).setOrigin(0.5);
 
-        this.infoPanel.add([bg, title, statsText, intentObj, statusObj]);
+        // Собираем всё вместе
+        panel.add([shadow, bg, title, line, statsText, intentObj, statusObj]);
+
+        // 6. АНИМАЦИЯ ПОЯВЛЕНИЯ (POP-UP)
+        panel.setScale(0);
+        panel.setAlpha(0);
+        this.scene.tweens.add({
+            targets: panel,
+            scale: 1,
+            alpha: 1,
+            duration: 300,
+            ease: 'Back.out' // Эффект пружины
+        });
     }
+
+    // Вспомогательный метод для перевода названий (можно добавить внутрь класса)
+    getStatusNameRU(key) {
+        const map = {
+            'strength': 'Сила', 'weak': 'Слабость', 'vulnerable': 'Уязвимость',
+            'poison': 'Яд', 'thorns': 'Шипы', 'block': 'Щит'
+        };
+        return map[key] || key.toUpperCase();
+    }
+    
 }
