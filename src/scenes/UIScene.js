@@ -115,19 +115,16 @@ export class UIScene extends Phaser.Scene {
         text += `\n--- 🃏 DECK (${GameState.deck.length}) ---\n`;
         this.statsContent.setText(text);
     }
-        createFullscreenBtn(GW) {
-        // --- 1. НОВАЯ ПОЗИЦИЯ (Слева вверху, под HP) ---
-        const x = 40; 
-        const y = 90; // Чуть ниже текста HP
+            createFullscreenBtn(GW) {
+        // 1. Позиция: Слева вверху, под HP (x=40, y=90)
+        const btnContainer = this.add.container(40, 90).setDepth(5000);
 
-        const btnContainer = this.add.container(x, y).setDepth(5000);
-
-        // Фон кнопки (полупрозрачный круг)
+        // 2. Фон кнопки
         const bg = this.add.circle(0, 0, 20, 0x000000, 0.5)
-            .setStrokeStyle(2, 0x666666)
-            .setInteractive();
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive({ useHandCursor: true }); // Курсор-рука
 
-        // Иконка
+        // 3. Иконка
         const icon = this.add.text(0, 0, "⛶", { 
             fontSize: '24px', 
             color: '#ffffff' 
@@ -135,30 +132,26 @@ export class UIScene extends Phaser.Scene {
 
         btnContainer.add([bg, icon]);
 
-        // --- 2. БЕЗОПАСНАЯ ОБРАБОТКА КЛИКА ---
-        bg.on('pointerdown', () => {
+        // 4. СОХРАНЯЕМ ССЫЛКУ НА СЦЕНУ
+        const scene = this;
+
+        // 5. ЖЕЛЕЗОБЕТОННЫЙ ОБРАБОТЧИК
+        bg.on('pointerdown', function() {
             
-            // Проверяем, поддерживает ли браузер Fullscreen API
-            if (!this.scale.isEnabled) {
-                console.warn('Fullscreen API not supported in this browser');
-                return;
+            // Используем scene.scale, а не this.scale
+            if (scene.scale.isFullscreen) {
+                scene.scale.stopFullscreen();
+                icon.setText("⛶"); // Иконка "Раскрыть"
+            } else {
+                scene.scale.startFullscreen();
+                icon.setText("✖"); // Иконка "Свернуть"
             }
 
-            try {
-                if (this.scale.isFullscreen) {
-                    this.scale.stopFullscreen();
-                    icon.setText("⛶"); 
-                } else {
-                    this.scale.startFullscreen();
-                    icon.setText("✖");
-                }
-            } catch (err) {
-                console.error("Fullscreen Error:", err);
-            }
         });
 
         // Анимация наведения
-        bg.on('pointerover', () => this.tweens.add({ targets: btnContainer, scale: 1.1, duration: 100 }));
-        bg.on('pointerout', () => this.tweens.add({ targets: btnContainer, scale: 1, duration: 100 }));
+        bg.on('pointerover', () => scene.tweens.add({ targets: btnContainer, scale: 1.1, duration: 100 }));
+        bg.on('pointerout', () => scene.tweens.add({ targets: btnContainer, scale: 1, duration: 100 }));
     }
+
 }
