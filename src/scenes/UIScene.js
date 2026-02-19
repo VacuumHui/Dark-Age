@@ -23,6 +23,7 @@ export class UIScene extends Phaser.Scene {
         
         // ВАЖНО: При закрытии сцены нужно ОТПИСАТЬСЯ, иначе будет ошибка при рестарте
         this.events.on('shutdown', this.shutdown, this);
+        this.createFullscreenBtn(GW);
         
         this.updateUI();
     }
@@ -113,5 +114,41 @@ export class UIScene extends Phaser.Scene {
         }
         text += `\n--- 🃏 DECK (${GameState.deck.length}) ---\n`;
         this.statsContent.setText(text);
+    }
+    createFullscreenBtn(GW) {
+        // Ставим кнопку в правый нижний угол (или верхний правый, если удобнее)
+        // Я поставлю в левый нижний, чтобы не мешать картам и кнопке "End Turn"
+        const x = 40;
+        const y = this.scale.height - 40;
+
+        const btnContainer = this.add.container(x, y).setDepth(5000); // Поверх всего
+
+        // Фон кнопки
+        const bg = this.add.circle(0, 0, 25, 0x000000, 0.6)
+            .setStrokeStyle(2, 0xffffff)
+            .setInteractive();
+
+        // Иконка (символ расширения)
+        const icon = this.add.text(0, 0, "⛶", { 
+            fontSize: '24px', 
+            color: '#ffffff' 
+        }).setOrigin(0.5);
+
+        btnContainer.add([bg, icon]);
+
+        // Обработка клика
+        bg.on('pointerdown', () => {
+            if (this.scale.isFullscreen) {
+                this.scale.stopFullscreen();
+                icon.setText("⛶"); // Иконка "Раскрыть"
+            } else {
+                this.scale.startFullscreen();
+                icon.setText("✖"); // Иконка "Закрыть/Свернуть"
+            }
+        });
+
+        // Анимация при наведении (для ПК)
+        bg.on('pointerover', () => this.tweens.add({ targets: btnContainer, scale: 1.1, duration: 100 }));
+        bg.on('pointerout', () => this.tweens.add({ targets: btnContainer, scale: 1, duration: 100 }));
     }
 }
