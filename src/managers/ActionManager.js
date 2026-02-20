@@ -101,6 +101,77 @@ export const ACTIONS = {
         } else if (scene.game && scene.game.events) {
             scene.game.events.emit('UPDATE_UI');
         }
+    },
+        // новое
+    
+    // 1. Урон от Блока (Удар Щитом)
+    damage_from_block: (scene, action, source, target) => {
+        if (target && target.takeDamage && source.shield > 0) {
+            let dmg = source.shield;
+            // Учитываем Силу, Уязвимость и т.д.
+            if (scene.statusManager) {
+                dmg = scene.statusManager.calculateDamage(source, target, dmg);
+            }
+            target.takeDamage(dmg, source);
+            if (scene.effectManager) scene.effectManager.playHit(target.x, target.y, target.isPlayer);
+        } else {
+            scene.ui.showFloatingText(source.x, source.y - 80, "Нет щита!", 0xaaaaaa);
+        }
+    },
+
+    // 2. Умножение Блока (Окоп)
+    multiply_block: (scene, action, source, target) => {
+        if (target && target.shield > 0) {
+            // Умножаем на 1.4 (прибавка 40%)
+            const extraBlock = Math.floor(target.shield * 0.4);
+            target.addShield(extraBlock);
+            if (scene.effectManager) scene.effectManager.playBlock(target.x, target.y);
+        }
+    },
+
+    // 3. Динамический урон от ХП (Отчаяние, Кровавое лезвие)
+    dynamic_damage: (scene, action, source, target) => {
+        if (target && target.takeDamage) {
+            let dmg = action.value;
+            // Перерасчитываем прямо перед ударом на всякий случай
+            if (action.formula === 'despair') {
+                const hpPercent = source.hp / source.maxHp;
+                if (hpPercent <= 0.1) dmg = 15;
+                else if (hpPercent <= 0.5) dmg = 10;
+                else dmg = 2;
+            } else if (action.formula === 'blood_blade') {
+                const missingHp = source.maxHp - source.hp;
+                dmg = Math.floor(missingHp * 0.25);
+            }
+
+            if (scene.statusManager) {
+                dmg = scene.statusManager.calculateDamage(source, target, dmg);
+            }
+            target.takeDamage(dmg, source);
+            if (scene.effectManager) scene.effectManager.playHit(target.x, target.y, target.isPlayer);
+        }
+    },
+
+    // 4. МАССОВЫЙ УРОН (Рассечение)
+    aoe_damage: (scene, action, source, target) => {
+        // action.target='all_enemies' обрабатывается в BattleScene, 
+        // поэтому сюда приходит конкретный target из массива
+        if (target && target.takeDamage) {
+            let dmg = action.value;
+            if (scene.statusManager) {
+                dmg = scene.statusManager.calculateDamage(source, target, dmg);
+            }
+            target.takeDamage(dmg, source);
+            if (scene.effectManager) scene.effectManager.playHit(target.x, target.y, target.isPlayer);
+        }
+    },
+    
+    // 5. Метка добивания
+    mark_execute: (scene, action, source, target) => {
+        if (target && scene.statusManager) {
+            scene.statusManager.applyStatus(target, 'execute_mark', 1);
+            scene.ui.showFloatingText(target.x, target.y - 120, "МЕТКА СМЕРТИ!", 0xff0000);
+        }
     }
 };
 
