@@ -59,25 +59,36 @@ export class StatusManager {
     }
 
 
-    onTurnEnd(unit) {
-
-        ['weak', 'vulnerable'].forEach(stat => {
+        onTurnEnd(unit) {
+        ['weak', 'vulnerable', 'execute_mark'].forEach(stat => {
             if (unit.statuses[stat] > 0) {
+                // Если это метка добивания игрока, она висит 1 ход и пропадает
                 unit.statuses[stat]--;
                 if (unit.statuses[stat] <= 0) delete unit.statuses[stat];
             }
         });
-
         unit.updateStatusUI();
     }
 
-    onTakeDamage(unit, amount) {
+
+        onTakeDamage(unit, amount) {
+        // Ярость
         if (unit.statuses['rage'] > 0 && amount > 0) {
             this.applyStatus(unit, 'strength', 1); 
-            // ИСПРАВЛЕНО
-            this.scene.ui.showFloatingText(unit.x, unit.y - 100, "RAGE!", 0xff0000);
+            this.scene.ui.showFloatingText(unit.x, unit.y - 100, "ЯРОСТЬ!", 0xffaa00);
+        }
+
+        // ДОБИВАНИЕ (Если висит метка, ХП <= 20% и урон > 0)
+        if (unit.statuses['execute_mark'] > 0 && amount > 0 && unit.alive) {
+            const hpPercent = unit.hp / unit.maxHp;
+            if (hpPercent <= 0.2) {
+                this.scene.ui.showFloatingText(unit.x, unit.y - 140, "ФАТАЛИТИ!", 0xaa00ff);
+                this.scene.cameras.main.shake(300, 0.02);
+                unit.hp = 0; // Мгновенная смерть
+            }
         }
     }
+
 
     checkTurnSkip(unit) {
         if (unit.statuses['freeze'] > 0) {
