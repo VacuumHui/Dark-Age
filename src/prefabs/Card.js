@@ -5,12 +5,13 @@ import { ENCHANTS_DB } from '../data/enchants.js';
 import { getComputedCard } from '../managers/CardLogic.js';
 
 export class Card extends Phaser.GameObjects.Container {
-    constructor(scene, x, y, cardInstance) {
+    constructor(scene, x, y, cardInstance, playerContext = null) {
         super(scene, x, y);
         this.scene = scene;
-        this.cardInstance = cardInstance; 
+        this.cardInstance = cardInstance;
+        this.playerContext = playerContext; // Сохраняем ссылку на игрока
         
-        this.cardData = getComputedCard(cardInstance);
+        this.cardData = getComputedCard(cardInstance, playerContext);
         const baseData = CARDS_DB[cardInstance.id];
         
         this.isZoomed = false;
@@ -102,6 +103,29 @@ export class Card extends Phaser.GameObjects.Container {
             if (Date.now() - this.pressStartTime < 250) this.scene.zoomCard(this);
         });
     }
+
+        // --- НОВЫЙ МЕТОД ---
+    refreshDynamicText() {
+        // Пересчитываем данные с учетом текущего состояния игрока
+        this.cardData = getComputedCard(this.cardInstance, this.playerContext);
+        const baseData = CARDS_DB[this.cardInstance.id];
+        
+        let descText = this.cardData.generatedDesc || this.cardData.desc;
+        
+        // Обновляем текст и цвет на миниатюре
+        this.shortDesc.setText(descText);
+        if (this.cardData.dynamicColor) {
+            this.shortDesc.setColor(this.cardData.dynamicColor);
+        }
+
+        // Обновляем полное описание (на случай, если открыт зум)
+        let fullTextContent = baseData.fullDesc || baseData.desc;
+        if (this.cardData.generatedDesc !== baseData.desc) {
+             fullTextContent += "\n\n" + this.cardData.generatedDesc;
+        }
+        this.fullDesc.setText(fullTextContent);
+    }
+
 
     toggleMode(isZoomed) {
         this.isZoomed = isZoomed;
