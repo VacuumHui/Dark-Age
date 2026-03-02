@@ -151,20 +151,21 @@ export const ACTIONS = {
             if (scene.effectManager) scene.effectManager.playHit(target.x, target.y, target.isPlayer);
         }
     },
-
-    // 4. МАССОВЫЙ УРОН (Рассечение)
-    aoe_damage: (scene, action, source, target) => {
-        // action.target='all_enemies' обрабатывается в BattleScene, 
-        // поэтому сюда приходит конкретный target из массива
+    
+    // МАССОВЫЙ УРОН (Должно называться именно aoe_dmg, так как в карте type: "aoe_dmg")
+    aoe_dmg: (scene, action, source, target) => {
         if (target && target.takeDamage) {
             let dmg = action.value;
+            // Учитываем Силу игрока и Уязвимость врага
             if (scene.statusManager) {
                 dmg = scene.statusManager.calculateDamage(source, target, dmg);
             }
             target.takeDamage(dmg, source);
+            // Анимация удара
             if (scene.effectManager) scene.effectManager.playHit(target.x, target.y, target.isPlayer);
         }
     },
+
     
     // 5. Метка добивания
     mark_execute: (scene, action, source, target) => {
