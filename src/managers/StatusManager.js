@@ -35,8 +35,8 @@ export class StatusManager {
         return Math.max(0, finalDamage);
     }
 
-        onTurnStart(unit) {
-        // ЯД (наносит урон = стакам, стаки падают на 1)
+            onTurnStart(unit) {
+        // ЯД
         if (unit.statuses['poison'] > 0) {
             const dmg = unit.statuses['poison'];
             this.scene.ui.showFloatingText(unit.x, unit.y - 100, "ЯД!", 0x00ff00);
@@ -46,17 +46,18 @@ export class StatusManager {
             if (unit.statuses['poison'] <= 0) delete unit.statuses['poison'];
         }
         
-        // КРОВОТЕЧЕНИЕ (наносит 1 урон, длительность падает на 1)
-        if (unit.statuses['bleed'] > 0 && unit.alive) {
-            this.scene.ui.showFloatingText(unit.x, unit.y - 80, "КРОВОТЕЧЕНИЕ!", 0xff0000);
-            unit.takeDamage(1, null); // Всегда 1 урон
+        // ГЛУБОКАЯ РАНА (наносит 1 урон, висит долго)
+        if (unit.statuses['wound'] > 0 && unit.alive) {
+            this.scene.ui.showFloatingText(unit.x, unit.y - 80, "РАНА!", 0xff3333);
+            unit.takeDamage(1, null); 
             
-            unit.statuses['bleed']--;
-            if (unit.statuses['bleed'] <= 0) delete unit.statuses['bleed'];
+            unit.statuses['wound']--;
+            if (unit.statuses['wound'] <= 0) delete unit.statuses['wound'];
         }
 
         unit.updateStatusUI();
     }
+
 
 
         onTurnEnd(unit) {
