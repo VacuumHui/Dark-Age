@@ -151,5 +151,86 @@ export const CARDS_DB = {
             { type: "draw", value: 2 },
             { type: "damage", value: 5 }
         ]
-    }
+    },
+        // --- НОВЫЕ КАРТЫ (ОБЫЧНЫЕ) ---
+    "shield_bash": {
+        name: "Удар щитом",
+        cost: 2,
+        rarity: "common",
+        target: "enemy",
+        color: 0x5555aa,
+        desc: "Урон = Блоку",
+        fullDesc: "Наносит урон, равный вашему текущему показателю Щита.",
+        actions: [ { type: "dmg_from_block" } ]
+    },
+    "poison_dagger": {
+        name: "Кинжал Яда",
+        cost: 2,
+        rarity: "common",
+        target: "enemy",
+        color: 0x44aa44,
+        desc: "1 Урона\n2 Яда",
+        fullDesc: "Наносит 1 единицу урона и накладывает 2 стака Яда.",
+        actions: [
+            { type: "damage", value: 1 },
+            { type: "apply_status", status: "poison", value: 2 }
+        ]
+    },
+
+    // --- НОВЫЕ КАРТЫ (РЕДКИЕ) ---
+    "cleave": {
+        name: "Рассечение",
+        cost: 3,
+        rarity: "rare",
+        target: "all_enemies", // Бьет всех
+        color: 0xaa4444,
+        desc: "4 Урона ВСЕМ\n+Рана",
+        fullDesc: "Наносит 4 урона всем врагам. Накладывает Глубокую Рану (потеря 1 ХП каждый ход) на 5 ходов.",
+        actions: [
+            { type: "aoe_dmg", value: 4 },
+            { type: "apply_status", status: "wound", value: 5 } // Наша замена кровотечению
+        ]
+    },
+    "entrench": {
+        name: "Окоп",
+        cost: 2,
+        rarity: "rare",
+        target: "self",
+        color: 0x224488,
+        desc: "+40% к Щиту",
+        fullDesc: "Окапываемся. Увеличивает ваш ТЕКУЩИЙ Щит на 40%.",
+        actions: [ { type: "multiply_block" } ]
+    },
+    "despair": {
+        name: "Отчаяние",
+        cost: 2,
+        rarity: "rare",
+        target: "enemy",
+        color: 0x550055,
+        desc: "Динамичный урон",
+        fullDesc: "Наносит 2 урона. Если ХП < 50%, наносит 10 урона. Если ХП < 10%, наносит 15 урона.",
+        actions: [ { type: "dynamic_dmg", formula: "despair", value: 0 } ]
+    },
+
+    // --- НОВЫЕ КАРТЫ (ЛЕГЕНДАРНЫЕ) ---
+    "blood_blade": {
+        name: "Багровое Лезвие",
+        cost: 1,
+        rarity: "legendary",
+        target: "enemy",
+        color: 0xaa0000,
+        desc: "Урон от потерь",
+        fullDesc: "Наносит урон, равный 25% от вашего недостающего здоровья.",
+        actions: [ { type: "dynamic_dmg", formula: "red_blade", value: 0 } ]
+    },
+    "execute": {
+        name: "Добивание",
+        cost: 2,
+        rarity: "legendary",
+        target: "enemy",
+        color: 0x000000,
+        desc: "Метка слабости",
+        fullDesc: "Накладывает Метку на 1 ход. Если у цели меньше 20% ХП, любой следующий урон мгновенно уничтожит её.",
+        actions: [ { type: "mark_target" } ]
+    },
 };
