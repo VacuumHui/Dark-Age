@@ -281,6 +281,15 @@ export class HandManager {
             });
         });
     }
+        // Пооверка после хода 
+    updateDynamicCards() {
+        this.hand.forEach(card => {
+            if (card.refreshDynamicText) {
+                card.refreshDynamicText();
+            }
+        });
+    }
+    
 
     playCardLogic(card, target) {
         
