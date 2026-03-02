@@ -186,12 +186,18 @@ export class BattleScene extends Phaser.Scene {
         this.updateGlobalUI();
     }
 
-    updateGlobalUI() {
+        updateGlobalUI() {
         if (this.player) {
             GameState.currentHp = this.player.hp;
         }
         this.game.events.emit('UPDATE_UI');
+        
+        // --- ДОБАВЛЕНО: Обновляем текст на картах в руке ---
+        if (this.handManager) {
+            this.handManager.updateDynamicCards();
+        }
     }
+
 
     updateDeckUI() {
         this.ui.updateDeckCount(
