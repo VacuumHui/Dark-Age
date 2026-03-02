@@ -59,18 +59,26 @@ export class Unit extends Phaser.GameObjects.Container {
         });
     }
 
-    updateStatusUI() {
+        updateStatusUI() {
         let text = "";
         if (this.statuses['strength']) text += `💪${this.statuses['strength']} `;
         if (this.statuses['poison']) text += `☠️${this.statuses['poison']} `;
+        
+        // ДОБАВЛЯЕМ РАНУ (Кровотечение) - Иконка капли или крови
+        if (this.statuses['wound']) text += `🩸${this.statuses['wound']} `;
+        
         if (this.statuses['weak']) text += `💔${this.statuses['weak']} `;
         if (this.statuses['vulnerable']) text += `👁️${this.statuses['vulnerable']} `;
         if (this.statuses['rage']) text += `😡 `;
         if (this.statuses['freeze']) text += `❄️ `;
         if (this.statuses['thorns']) text += `🌵${this.statuses['thorns']} `;
         
+        // ДОБАВЛЯЕМ МЕТКУ ДОБИВАНИЯ - Иконка черепа или прицела
+        if (this.statuses['doom_mark']) text += `🎯 `;
+
         this.statusText.setText(text);
     }
+
 
     takeDamage(amount, source = null) {
         if (!this.alive) return;
